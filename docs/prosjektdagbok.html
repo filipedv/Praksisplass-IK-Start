@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prosjektdagbok · IK Start</title>
+<meta name="theme-color" content="#0B1330">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy-950:#0B1330;
+    --navy-800:#17224C;
+    --blue:#33418C;
+    --blue-light:#7C89C4;
+    --white:#FFFFFF;
+    --paper:#F5F6FA;
+    --ink:#12162B;
+    --muted:#5B6178;
+    --line:#DEE1EC;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--white);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+    display:flex;
+    flex-direction:column;
+    min-height:100vh;
+  }
+  a{color:inherit;text-decoration:none;}
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:.72rem;
+    font-weight:600;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+  }
+
+  /* ---------- Header ---------- */
+  header{
+    position:sticky;
+    top:0;
+    z-index:50;
+    background:rgba(255,255,255,.88);
+    backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:16px 48px;
+    border-bottom:1px solid var(--line);
+    transition:box-shadow .25s ease;
+  }
+  header.scrolled{box-shadow:0 6px 24px -12px rgba(11,19,48,.18);}
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:13px;
+    font-weight:600;
+    font-size:1.05rem;
+    letter-spacing:.01em;
+    color:var(--navy-950);
+  }
+  .brand img{display:block;height:36px;width:auto;}
+  nav{display:flex;gap:38px;align-items:center;}
+  nav a{
+    font-size:.93rem;
+    font-weight:500;
+    color:var(--navy-800);
+    position:relative;
+    padding-bottom:4px;
+  }
+  nav a::after{
+    content:"";
+    position:absolute;left:0;right:0;bottom:-4px;
+    height:2px;background:var(--blue);
+    transform:scaleX(0);
+    transform-origin:left;
+    transition:transform .2s ease;
+  }
+  nav a:hover::after, nav a.active::after{transform:scaleX(1);}
+  nav a.active{color:var(--blue);}
+
+  /* ---------- Page hero ---------- */
+  .page-hero{
+    position:relative;
+    overflow:hidden;
+    background:linear-gradient(175deg, var(--navy-950) 0%, var(--navy-800) 100%);
+    padding:84px 24px 72px;
+    text-align:center;
+  }
+  .pitch-lines{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    opacity:.5;
+  }
+  .page-hero-inner{
+    position:relative;
+    z-index:2;
+    max-width:680px;
+    margin:0 auto;
+  }
+  .page-hero .eyebrow{color:var(--blue-light);}
+  .page-hero h1{
+    margin:16px 0 0;
+    font-family:'Fraunces',serif;
+    font-weight:700;
+    color:#fff;
+    font-size:clamp(2rem, 4.6vw, 3rem);
+    letter-spacing:-.01em;
+  }
+  .page-hero p{
+    margin:16px 0 0;
+    color:#C7CCE6;
+    font-size:1.02rem;
+    line-height:1.6;
+  }
+
+  /* ---------- Diary list ---------- */
+  main{
+    max-width:780px;
+    margin:0 auto;
+    padding:72px 24px 130px;
+    flex:1;
+    width:100%;
+  }
+  .diary{
+    display:flex;
+    flex-direction:column;
+    border-top:1px solid var(--line);
+  }
+  .entry{
+    border-bottom:1px solid var(--line);
+  }
+  .entry-toggle{
+    width:100%;
+    display:flex;
+    align-items:center;
+    gap:24px;
+    background:none;
+    border:0;
+    cursor:pointer;
+    padding:26px 4px;
+    text-align:left;
+    font-family:inherit;
+    color:var(--ink);
+  }
+  .entry-toggle:focus-visible{
+    outline:2px solid var(--blue);
+    outline-offset:4px;
+  }
+  .entry-date{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:.82rem;
+    font-weight:600;
+    letter-spacing:.04em;
+    color:var(--blue);
+    flex-shrink:0;
+    width:110px;
+  }
+  .entry-day{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:1.18rem;
+    color:var(--navy-950);
+    flex:1;
+  }
+  .entry-icon{
+    flex-shrink:0;
+    width:26px;
+    height:26px;
+    border:1px solid var(--line);
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    position:relative;
+    transition:border-color .2s ease, transform .3s ease;
+  }
+  .entry-icon::before, .entry-icon::after{
+    content:"";
+    position:absolute;
+    background:var(--navy-800);
+    transition:transform .3s ease, background .2s ease;
+  }
+  .entry-icon::before{width:10px; height:1.5px;}
+  .entry-icon::after{width:1.5px; height:10px;}
+  .entry-toggle[aria-expanded="true"] .entry-icon{
+    background:var(--blue);
+    border-color:var(--blue);
+  }
+  .entry-toggle[aria-expanded="true"] .entry-icon::before,
+  .entry-toggle[aria-expanded="true"] .entry-icon::after{background:#fff;}
+  .entry-toggle[aria-expanded="true"] .entry-icon::after{transform:scaleY(0);}
+
+  .entry-panel{
+    display:grid;
+    grid-template-rows:0fr;
+    transition:grid-template-rows .3s ease;
+  }
+  .entry-panel[data-open="true"]{grid-template-rows:1fr;}
+  .entry-panel-inner{
+    overflow:hidden;
+  }
+  .entry-panel p{
+    margin:0 0 28px;
+    padding-left:134px;
+    font-size:1.03rem;
+    line-height:1.75;
+    color:var(--muted);
+  }
+
+  @media (max-width:600px){
+    .entry-toggle{gap:14px;}
+    .entry-date{width:auto; font-size:.72rem;}
+    .entry-day{font-size:1.02rem;}
+    .entry-panel p{padding-left:0; margin-top:-6px;}
+  }
+
+  /* ---------- Footer ---------- */
+  footer{
+    border-top:1px solid var(--line);
+    padding:30px 48px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    color:var(--muted);
+    font-size:.83rem;
+  }
+  footer .foot-brand{
+    font-family:'IBM Plex Mono',monospace;
+    letter-spacing:.05em;
+    color:var(--navy-800);
+  }
+
+  @media (max-width:720px){
+    header{flex-direction:column;gap:16px;padding:20px 24px;}
+    nav{gap:22px;flex-wrap:wrap;justify-content:center;}
+    .page-hero{padding:64px 18px 52px;}
+    main{padding:56px 20px 96px;}
+    footer{flex-direction:column;gap:10px;text-align:center;padding:24px;}
+  }
+</style>
+</head>
+<body>
+
+<header id="siteHeader">
+  <div class="brand">
+    <img src="start-logo.png" alt="IK Start">
+    <span>IK Start</span>
+  </div>
+  <nav>
+    <a href="index.html">Hjem</a>
+    <a href="prosjektdagbok.html" class="active">Prosjektdagbok</a>
+    <a href="om-oss.html">Om oss</a>
+  </nav>
+</header>
+
+<section class="page-hero">
+  <svg class="pitch-lines" viewBox="0 0 1440 420" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <line x1="720" y1="0" x2="720" y2="420" stroke="#ffffff" stroke-width="1"/>
+    <circle cx="720" cy="210" r="80" fill="none" stroke="#ffffff" stroke-width="1"/>
+  </svg>
+  <div class="page-hero-inner">
+    <span class="eyebrow">Praksisprosjekt · IK Start</span>
+    <h1>Prosjektdagbok</h1>
+    <p>Loggen oppdateres fortløpende etter hver arbeidsdag. Trykk på en dato for å lese hva vi jobbet med.</p>
+  </div>
+</section>
+
+<main>
+  <div class="diary">
+
+    <div class="entry">
+      <button class="entry-toggle" aria-expanded="false">
+        <span class="entry-date">12.08.2026</span>
+        <span class="entry-day">Onsdag</span>
+        <span class="entry-icon" aria-hidden="true"></span>
+      </button>
+      <div class="entry-panel" data-open="false">
+        <div class="entry-panel-inner">
+          <p>Møtt arbeidsgiver, definert arbeidsoppgaven og begynt med idemyldring.</p>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<footer>
+  <span class="foot-brand">IK START · PRAKSISPROSJEKT</span>
+  <span>Øyvind Birkeland · Sivert Dørum · Filip Edvardsen</span>
+</footer>
+
+<script>
+  const header = document.getElementById('siteHeader');
+  window.addEventListener('scroll', () => {
+    header.classList.toggle('scrolled', window.scrollY > 8);
+  });
+
+  document.querySelectorAll('.entry-toggle').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const panel = btn.nextElementSibling;
+      const isOpen = btn.getAttribute('aria-expanded') === 'true';
+      btn.setAttribute('aria-expanded', String(!isOpen));
+      panel.setAttribute('data-open', String(!isOpen));
+    });
+  });
+</script>
+
+</body>
+</html>
