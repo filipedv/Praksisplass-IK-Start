@@ -210,12 +210,13 @@
     overflow:hidden;
   }
   .entry-panel p{
-    margin:0 0 28px;
+    margin:0 0 16px;
     padding-left:134px;
     font-size:1.03rem;
     line-height:1.75;
     color:var(--muted);
   }
+  .entry-panel p:last-child{margin-bottom:28px;}
 
   @media (max-width:600px){
     .entry-toggle{gap:14px;}
@@ -287,6 +288,49 @@
       <div class="entry-panel" data-open="false">
         <div class="entry-panel-inner">
           <p>Møtt arbeidsgiver, definert arbeidsoppgaven og begynt med idemyldring.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="entry">
+      <button class="entry-toggle" aria-expanded="false">
+        <span class="entry-date">19.08.2026</span>
+        <span class="entry-day">Onsdag</span>
+        <span class="entry-icon" aria-hidden="true"></span>
+      </button>
+      <div class="entry-panel" data-open="false">
+        <div class="entry-panel-inner">
+          <p>Laget flytdiagram for hvordan prosessen skal se ut og fungere, samt laget en enkel sketsj av hvordan appen skal se ut.</p>
+          <p>Brainstormet hva slags funksjoner appen skal inneholde, samt hvem som skal ha tilgang til hva (spiller, trener, admin), og hvordan interfacet skal se ut for de ulike rollene.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="entry">
+      <button class="entry-toggle" aria-expanded="false">
+        <span class="entry-date">23.08.2026</span>
+        <span class="entry-day">Fredag</span>
+        <span class="entry-icon" aria-hidden="true"></span>
+      </button>
+      <div class="entry-panel" data-open="false">
+        <div class="entry-panel-inner">
+          <p>Satt opp GitHub-repository der vi får samlet prosjektskissene i første omgang, og satt opp nettside via GitHub Pages for prosjektlogging.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="entry">
+      <button class="entry-toggle" aria-expanded="false">
+        <span class="entry-date">26.08.2026</span>
+        <span class="entry-day">Onsdag</span>
+        <span class="entry-icon" aria-hidden="true"></span>
+      </button>
+      <div class="entry-panel" data-open="false">
+        <div class="entry-panel-inner">
+          <p>Lagt til teknisk informasjon i Excel-dokument om hvert "bilde" spillerprofilen inneholder.</p>
+          <p>Gjort canvas-plakatene våre mer detaljerte og mer gjennomtenkt.</p>
+          <p>Laget sketsj for foresattes bruker.</p>
+          <p>Laget sketsj for dashboard til trener — her vil vi jobbe videre med å lage en mer minimalistisk versjon for mobilbruk, slik at trenere kan ta raske notater uten å dra opp dashboardet på PC.</p>
         </div>
       </div>
     </div>
