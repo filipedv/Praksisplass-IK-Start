@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Status | Praksis hos IK Start</title>
+<meta name="theme-color" content="#0B1330">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+<style>
+
+:root{
+  --navy-950:#0B1330;
+  --navy-800:#17224C;
+  --blue:#33418C;
+  --blue-light:#7C89C4;
+  --white:#FFFFFF;
+  --paper:#F5F6FA;
+  --ink:#12162B;
+  --muted:#5B6178;
+  --line:#DEE1EC;
+}
+
+*{
+  box-sizing:border-box;
+}
+
+html{
+  scroll-behavior:smooth;
+}
+
+body{
+  margin:0;
+  background:var(--white);
+  color:var(--ink);
+  font-family:'Inter',sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+
+a{
+  color:inherit;
+  text-decoration:none;
+}
+
+.eyebrow{
+  font-family:'IBM Plex Mono',monospace;
+  font-size:.72rem;
+  font-weight:600;
+  letter-spacing:.14em;
+  text-transform:uppercase;
+}
+
+
+/* ---------- Header ---------- */
+
+header{
+  position:sticky;
+  top:0;
+  z-index:50;
+  background:rgba(255,255,255,.88);
+  backdrop-filter:blur(10px);
+  -webkit-backdrop-filter:blur(10px);
+
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+
+  padding:16px 48px;
+
+  border-bottom:1px solid var(--line);
+
+  transition:box-shadow .25s ease;
+}
+
+header.scrolled{
+  box-shadow:0 6px 24px -12px rgba(11,19,48,.18);
+}
+
+.brand{
+  display:flex;
+  align-items:center;
+  gap:13px;
+
+  font-weight:600;
+  font-size:1.05rem;
+  letter-spacing:.01em;
+
+  color:var(--navy-950);
+}
+
+.brand img{
+  display:block;
+  height:36px;
+  width:auto;
+}
+
+nav{
+  display:flex;
+  gap:38px;
+  align-items:center;
+}
+
+nav a{
+  font-size:.93rem;
+  font-weight:500;
+  color:var(--navy-800);
+
+  position:relative;
+
+  padding-bottom:4px;
+}
+
+nav a::after{
+  content:"";
+
+  position:absolute;
+
+  left:0;
+  right:0;
+  bottom:-4px;
+
+  height:2px;
+
+  background:var(--blue);
+
+  transform:scaleX(0);
+
+  transform-origin:left;
+
+  transition:transform .2s ease;
+}
+
+nav a:hover::after,
+nav a.active::after{
+  transform:scaleX(1);
+}
+
+nav a.active{
+  color:var(--blue);
+}
+
+
+/* ---------- Hero ---------- */
+
+.hero{
+  position:relative;
+  overflow:hidden;
+
+  background:linear-gradient(
+    175deg,
+    var(--navy-950) 0%,
+    var(--navy-800) 100%
+  );
+
+  padding:100px 24px 92px;
+
+  text-align:center;
+}
+
+.pitch-lines{
+  position:absolute;
+  inset:0;
+
+  width:100%;
+  height:100%;
+
+  opacity:.5;
+}
+
+.hero-inner{
+  position:relative;
+  z-index:2;
+
+  max-width:760px;
+
+  margin:0 auto;
+}
+
+.hero .eyebrow{
+  color:var(--blue-light);
+}
+
+.hero h1{
+  margin:20px 0 0;
+
+  font-family:'Fraunces',serif;
+
+  font-weight:700;
+  font-optical-sizing:auto;
+
+  color:#fff;
+
+  font-size:clamp(2.4rem,5.6vw,3.9rem);
+
+  letter-spacing:-.01em;
+
+  line-height:1.08;
+}
+
+.hero h1 em{
+  font-style:normal;
+  color:var(--blue-light);
+}
+
+.hero p{
+  max-width:600px;
+
+  margin:26px auto 0;
+
+  color:#D9DDF0;
+
+  line-height:1.7;
+
+  font-size:1.05rem;
+}
+
+
+/* ---------- Main ---------- */
+
+main{
+  max-width:1080px;
+
+  margin:0 auto;
+
+  padding:96px 24px 130px;
+}
+
+.section-head{
+  text-align:center;
+
+  max-width:650px;
+
+  margin:0 auto 48px;
+}
+
+.section-head .eyebrow{
+  color:var(--blue);
+}
+
+.section-head h2{
+  font-family:'Fraunces',serif;
+
+  font-weight:600;
+
+  font-size:2rem;
+
+  color:var(--navy-950);
+
+  margin:12px 0 0;
+}
+
+.section-head p{
+  color:var(--muted);
+
+  line-height:1.7;
+
+  margin:18px 0 0;
+}
+
+
+/* ---------- Video ---------- */
+
+.video-container{
+  max-width:900px;
+
+  margin:0 auto;
+
+  background:var(--paper);
+
+  border:1px solid var(--line);
+
+  border-radius:16px;
+
+  overflow:hidden;
+}
+
+.video-placeholder{
+  aspect-ratio:16 / 9;
+
+  display:flex;
+
+  flex-direction:column;
+
+  align-items:center;
+
+  justify-content:center;
+
+  text-align:center;
+
+  padding:30px;
+
+  background:linear-gradient(
+    145deg,
+    #101936,
+    #1A2757
+  );
+
+  color:white;
+}
+
+.play-icon{
+  width:70px;
+  height:70px;
+
+  border-radius:50%;
+
+  border:1px solid rgba(255,255,255,.35);
+
+  display:flex;
+
+  justify-content:center;
+  align-items:center;
+
+  margin-bottom:22px;
+
+  background:rgba(255,255,255,.08);
+}
+
+.play-icon span{
+  margin-left:5px;
+
+  width:0;
+  height:0;
+
+  border-top:10px solid transparent;
+  border-bottom:10px solid transparent;
+  border-left:16px solid white;
+}
+
+.video-placeholder h3{
+  font-family:'Fraunces',serif;
+
+  font-size:1.6rem;
+
+  margin:0;
+}
+
+.video-placeholder p{
+  margin:12px 0 0;
+
+  color:#C9CEE6;
+
+  line-height:1.6;
+}
+
+
+/* ---------- Footer ---------- */
+
+footer{
+  border-top:1px solid var(--line);
+
+  padding:30px 48px;
+
+  display:flex;
+
+  justify-content:space-between;
+  align-items:center;
+
+  color:var(--muted);
+
+  font-size:.83rem;
+}
+
+footer .foot-brand{
+  font-family:'IBM Plex Mono',monospace;
+
+  letter-spacing:.05em;
+
+  color:var(--navy-800);
+}
+
+
+/* ---------- Mobile ---------- */
+
+@media(max-width:720px){
+
+  header{
+    flex-direction:column;
+
+    gap:16px;
+
+    padding:20px 24px;
+  }
+
+  nav{
+    gap:22px;
+
+    flex-wrap:wrap;
+
+    justify-content:center;
+  }
+
+  .hero{
+    padding:72px 18px 64px;
+  }
+
+  main{
+    padding:72px 20px 96px;
+  }
+
+  footer{
+    flex-direction:column;
+
+    gap:10px;
+
+    text-align:center;
+
+    padding:24px;
+  }
+
+}
+
+</style>
+</head>
+
+<body>
+
+
+<header id="siteHeader">
+
+  <div class="brand">
+
+    <img src="start-logo.png" alt="IK Start">
+
+    <span>IK Start</span>
+
+  </div>
+
+
+  <nav>
+
+    <a href="index.html">
+      Hjem
+    </a>
+
+    <a href="prosjektdagbok.html">
+      Prosjektdagbok
+    </a>
+
+    <a href="status.html" class="active">
+      Status
+    </a>
+
+    <a href="om-oss.html">
+      Om oss
+    </a>
+
+  </nav>
+
+</header>
+
+
+<section class="hero">
+
+  <svg
+    class="pitch-lines"
+    viewBox="0 0 1440 620"
+    preserveAspectRatio="xMidYMid slice"
+    aria-hidden="true"
+  >
+
+    <line
+      x1="720"
+      y1="0"
+      x2="720"
+      y2="620"
+      stroke="#ffffff"
+      stroke-width="1"
+    />
+
+    <circle
+      cx="720"
+      cy="310"
+      r="92"
+      fill="none"
+      stroke="#ffffff"
+      stroke-width="1"
+    />
+
+    <circle
+      cx="720"
+      cy="310"
+      r="3"
+      fill="#ffffff"
+    />
+
+    <path
+      d="M -20 0 A 120 120 0 0 1 -20 250"
+      fill="none"
+      stroke="#ffffff"
+      stroke-width="1"
+    />
+
+    <path
+      d="M 1460 0 A 120 120 0 0 0 1460 250"
+      fill="none"
+      stroke="#ffffff"
+      stroke-width="1"
+    />
+
+  </svg>
+
+
+  <div class="hero-inner">
+
+    <span class="eyebrow">
+      Praksisprosjekt · IK Start · 2026
+    </span>
+
+    <h1>
+      Status for <em>prosjektet</em>
+    </h1>
+
+    <p>
+      Her viser vi frem hva vi har jobbet med så langt,
+      fremgangen i prosjektet og veien videre.
+    </p>
+
+  </div>
+
+</section>
+
+
+<main>
+
+  <div class="section-head">
+
+    <span class="eyebrow">
+      Prosjektstatus
+    </span>
+
+    <h2>
+      Dette har vi gjort så langt
+    </h2>
+
+    <p>
+      Videoen vil gi en kort gjennomgang av arbeidet vi har
+      gjennomført og hvor langt vi har kommet i utviklingen
+      av ernæringsappen.
+    </p>
+
+  </div>
+
+
+  <div class="video-container">
+
+    <div class="video-placeholder">
+
+      <div class="play-icon">
+        <span></span>
+      </div>
+
+      <h3>
+        Statusvideo kommer
+      </h3>
+
+      <p>
+        Video med gjennomgang av prosjektets fremgang
+        legges inn her.
+      </p>
+
+    </div>
+
+  </div>
+
+</main>
+
+
+<footer>
+
+  <span class="foot-brand">
+    IK START · PRAKSISPROSJEKT
+  </span>
+
+  <span>
+    Øyvind Birkeland · Sivert Dørum · Filip Edvardsen
+  </span>
+
+</footer>
+
+
+<script>
+
+const header =
+  document.getElementById('siteHeader');
+
+window.addEventListener('scroll', () => {
+
+  header.classList.toggle(
+    'scrolled',
+    window.scrollY > 8
+  );
+
+});
+
+</script>
+
+
+</body>
+</html>
