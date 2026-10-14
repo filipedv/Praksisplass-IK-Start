@@ -1,0 +1,99 @@
+/* Plain, functional styles for a desk tool. No framework on purpose. */
+
+:root {
+  --bg: #f8fafc;
+  --card: #ffffff;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --muted: #64748b;
+  --primary: #4f46e5; /* same indigo as the player app */
+  --danger: #dc2626;
+  --ok: #059669;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg);
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; }
+h1 { font-size: 22px; margin: 0 0 16px; }
+h2 { font-size: 16px; margin: 24px 0 8px; }
+
+/* ---------- Layout ---------- */
+.layout { display: flex; min-height: 100vh; }
+.sidebar {
+  width: 220px;
+  flex-shrink: 0;
+  background: #0f172a;
+  color: #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  padding: 16px 12px;
+  gap: 4px;
+}
+.brand { font-weight: 700; padding: 4px 8px 16px; }
+.brand span { display: block; font-weight: 400; color: #94a3b8; font-size: 12px; }
+.nav-link { color: #cbd5e1; text-decoration: none; padding: 8px; border-radius: 6px; }
+.nav-link:hover { background: #1e293b; }
+.nav-link.active { background: var(--primary); color: #fff; }
+.sidebar-footer { margin-top: auto; padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.sidebar-footer .muted { color: #94a3b8; }
+.credit { margin-top: 12px; }
+.content { flex: 1; padding: 24px 32px; max-width: 1200px; }
+
+/* ---------- Generic bits ---------- */
+.card { background: var(--card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.stack { display: flex; flex-direction: column; gap: 12px; }
+.row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.spread { justify-content: space-between; }
+.center { margin: 80px auto; text-align: left; }
+.narrow { max-width: 420px; }
+.muted { color: var(--muted); }
+.small { font-size: 12px; }
+.error { color: var(--danger); }
+.success { color: var(--ok); }
+.hint { background: #eef2ff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 10px 12px; color: #3730a3; }
+
+label { display: flex; flex-direction: column; gap: 4px; font-weight: 500; }
+input, select, textarea {
+  font: inherit;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  font-weight: 400;
+}
+input:disabled, select:disabled { background: #f1f5f9; color: var(--muted); }
+
+button {
+  font: inherit;
+  padding: 7px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: #94a3b8; }
+button:disabled { opacity: 0.5; cursor: default; }
+button.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+button.danger { color: var(--danger); }
+.link-button { background: none; border: none; padding: 0; color: inherit; text-decoration: underline; text-align: left; }
+
+/* ---------- Tables ---------- */
+table { width: 100%; border-collapse: collapse; background: var(--card); }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+th { font-size: 12px; color: var(--muted); font-weight: 600; background: #f1f5f9; }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover { background: #f8fafc; }
+tr.selected { background: #eef2ff; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.badge { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; background: #f1f5f9; }
+.badge.ok { background: #d1fae5; color: #047857; }
+.badge.off { background: #fee2e2; color: #b91c1c; }
+.badge.custom { background: #fef3c7; color: #b45309; }
+
+/* ---------- Foods page: list + editor side by side ---------- */
+.split { display: grid; grid-template-columns: 1fr 380px; gap: 20px; align-items: start; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

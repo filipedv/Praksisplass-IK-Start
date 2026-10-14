@@ -1,0 +1,16 @@
+{
+  "name": "seed-foods",
+  "private": true,
+  "type": "module",
+  "description": "Downloads Matvaretabellen foods and upserts them into the Supabase foods table.",
+  "scripts": {
+    "seed": "node --env-file=.env seed.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "typescript": "^7.0.2"
+  }
+}

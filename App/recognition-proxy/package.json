@@ -1,0 +1,19 @@
+{
+  "name": "recognition-proxy",
+  "private": true,
+  "type": "module",
+  "description": "Server-side proxy between the player app and FatSecret image recognition. Holds the FatSecret secret; the phone never talks to FatSecret directly.",
+  "scripts": {
+    "start": "node --dns-result-order=ipv4first --env-file=.env server.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.117.2",
+    "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^26.6.4",
+    "typescript": "^7.0.2"
+  }
+}

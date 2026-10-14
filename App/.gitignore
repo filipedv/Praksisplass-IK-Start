@@ -1,0 +1,10 @@
+# Dependencies
+node_modules/
+
+# Secrets — only the .env.example files are committed
+.env
+.env.*
+!.env.example
+
+# OS / editor
+.DS_Store
