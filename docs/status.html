@@ -517,6 +517,27 @@ footer .foot-brand{
 
 }
 
+
+/* ---------- Navigasjon: tilgjengelighet og mobil ---------- */
+nav a::after{bottom:0;}
+nav a:focus-visible{outline:2px solid var(--blue);outline-offset:4px;border-radius:2px;}
+nav a:focus-visible::after{transform:scaleX(1);}
+@media (max-width:720px){
+  header{gap:8px;padding:14px 20px 4px;}
+  nav{
+    width:100%;
+    gap:22px;
+    flex-wrap:nowrap;
+    justify-content:flex-start;
+    overflow-x:auto;
+    scrollbar-width:none;
+    padding:6px 4px 10px;
+  }
+  nav::-webkit-scrollbar{display:none;}
+  nav a{white-space:nowrap;flex-shrink:0;}
+  nav a:first-child{margin-left:auto;}
+  nav a:last-child{margin-right:auto;}
+}
 </style>
 </head>
 
@@ -525,20 +546,20 @@ footer .foot-brand{
 
 <header id="siteHeader">
 
-  <div class="brand">
+  <a class="brand" href="index.html" aria-label="IK Start – til forsiden">
 
     <img src="start-logo.png" alt="IK Start">
 
     <span>IK Start</span>
 
-  </div>
+  </a>
 
 
-  <nav>
+  <nav aria-label="Hovedmeny">
     <a href="index.html">Hjem</a>
     <a href="prosjektdagbok.html">Prosjektdagbok</a>
     <a href="om-oss.html">Om oss</a>
-    <a href="status.html" class="active">Status</a>
+    <a href="status.html" class="active" aria-current="page">Status</a>
     <a href="status2.html">Status 2</a>
   </nav>
 
@@ -735,17 +756,10 @@ footer .foot-brand{
 
 <script>
 
-const header =
-  document.getElementById('siteHeader');
-
-window.addEventListener('scroll', () => {
-
-  header.classList.toggle(
-    'scrolled',
-    window.scrollY > 8
-  );
-
-});
+const header = document.getElementById('siteHeader');
+  const updateHeader = () => header.classList.toggle('scrolled', window.scrollY > 8);
+  window.addEventListener('scroll', updateHeader, {passive:true});
+  updateHeader();
 
 </script>
 

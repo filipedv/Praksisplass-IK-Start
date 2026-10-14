@@ -248,18 +248,39 @@
     main{padding:56px 20px 96px;}
     footer{flex-direction:column;gap:10px;text-align:center;padding:24px;}
   }
+
+/* ---------- Navigasjon: tilgjengelighet og mobil ---------- */
+nav a::after{bottom:0;}
+nav a:focus-visible{outline:2px solid var(--blue);outline-offset:4px;border-radius:2px;}
+nav a:focus-visible::after{transform:scaleX(1);}
+@media (max-width:720px){
+  header{gap:8px;padding:14px 20px 4px;}
+  nav{
+    width:100%;
+    gap:22px;
+    flex-wrap:nowrap;
+    justify-content:flex-start;
+    overflow-x:auto;
+    scrollbar-width:none;
+    padding:6px 4px 10px;
+  }
+  nav::-webkit-scrollbar{display:none;}
+  nav a{white-space:nowrap;flex-shrink:0;}
+  nav a:first-child{margin-left:auto;}
+  nav a:last-child{margin-right:auto;}
+}
 </style>
 </head>
 <body>
 
 <header id="siteHeader">
-  <div class="brand">
+  <a class="brand" href="index.html" aria-label="IK Start – til forsiden">
     <img src="start-logo.png" alt="IK Start">
     <span>IK Start</span>
-  </div>
-  <nav>
+  </a>
+  <nav aria-label="Hovedmeny">
     <a href="index.html">Hjem</a>
-    <a href="prosjektdagbok.html" class="active">Prosjektdagbok</a>
+    <a href="prosjektdagbok.html" class="active" aria-current="page">Prosjektdagbok</a>
     <a href="om-oss.html">Om oss</a>
     <a href="status.html">Status</a>
     <a href="status2.html">Status 2</a>
@@ -443,9 +464,9 @@
 
 <script>
   const header = document.getElementById('siteHeader');
-  window.addEventListener('scroll', () => {
-    header.classList.toggle('scrolled', window.scrollY > 8);
-  });
+  const updateHeader = () => header.classList.toggle('scrolled', window.scrollY > 8);
+  window.addEventListener('scroll', updateHeader, {passive:true});
+  updateHeader();
 
   document.querySelectorAll('.entry-toggle').forEach(btn => {
     btn.addEventListener('click', () => {
