@@ -140,6 +140,11 @@ How to run everything: see `README.md`.
   - Names, roles and active status are NOT changed there: the panel updates
     `profiles` directly under RLS.
   - Invoked with `region: eu-central-1` (GDPR; Stockholm isn't a function region).
+    That makes supabase-js send an `x-region` header, which is NOT in the
+    standard CORS allow-list. The function therefore adds it (`CORS` in
+    `index.ts`); without it, browsers block every call with "Failed to send a
+    request to the Edge Function". Node-based tests don't enforce CORS, so test
+    the preflight with `curl -X OPTIONS … -H "Access-Control-Request-Headers: …,x-region"`.
   - Never log request bodies.
   - Hard-deleting accounts is deliberately not offered (soft delete via `is_active`).
 - When changing SQL, test RLS before pushing. We've done this with PGlite

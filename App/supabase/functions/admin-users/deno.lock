@@ -3,6 +3,7 @@
   "specifiers": {
     "jsr:@supabase/functions-js@2": "2.117.3",
     "npm:@supabase/server@1": "1.9.2_@supabase+supabase-js@2.117.3",
+    "npm:@supabase/supabase-js@2": "2.117.3",
     "npm:openai@^4.52.5": "4.104.0"
   },
   "jsr": {
@@ -291,7 +292,8 @@
   "workspace": {
     "dependencies": [
       "jsr:@supabase/functions-js@2",
-      "npm:@supabase/server@1"
+      "npm:@supabase/server@1",
+      "npm:@supabase/supabase-js@2"
     ]
   }
 }

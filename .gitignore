@@ -1,0 +1,3 @@
+# macOS Finder metadata (folder view settings) — never useful in the repo.
+# The pattern matches .DS_Store in every folder, at any depth.
+.DS_Store

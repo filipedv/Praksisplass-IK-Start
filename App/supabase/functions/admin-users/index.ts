@@ -23,6 +23,19 @@
 
 import '@supabase/functions-js/edge-runtime.d.ts';
 import { withSupabase } from '@supabase/server';
+import { corsHeaders } from '@supabase/supabase-js/cors';
+
+// CORS = the browser's permission check for calling another site. The admin
+// panel pins this function to an EU region, which makes supabase-js send an
+// extra `x-region` header. The standard allow-list doesn't include it, so the
+// BROWSER would block every request ("Failed to send a request to the Edge
+// Function") — so we allow it on top of Supabase's standard headers.
+const CORS = {
+  headers: {
+    ...corsHeaders,
+    'Access-Control-Allow-Headers': `${corsHeaders['Access-Control-Allow-Headers']}, x-region`,
+  },
+};
 
 const ROLES = ['player', 'coach', 'guardian', 'admin'];
 const MIN_PASSWORD_LENGTH = 8;
@@ -42,7 +55,7 @@ function authErrorMessage(message: string): string {
 }
 
 export default {
-  fetch: withSupabase({ auth: 'user' }, async (req, ctx) => {
+  fetch: withSupabase({ auth: 'user', cors: CORS }, async (req, ctx) => {
     if (req.method !== 'POST') return reply({ error: 'Use POST' }, 405);
 
     // ---- 3. Is the caller an ACTIVE admin? Ask the database, as the caller. ----
