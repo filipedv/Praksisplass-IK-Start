@@ -281,13 +281,13 @@ main{
 /* ---------- Bilder ---------- */
 
 .images{
-  max-width:900px;
+  max-width:1000px;
 
   margin:64px auto 0;
 
   display:grid;
-  grid-template-columns:repeat(3, 1fr);
-  gap:32px;
+  grid-template-columns:repeat(4, 1fr);
+  gap:24px;
 }
 
 .images figure{
@@ -346,6 +346,14 @@ footer .foot-brand{
 
 
 /* ---------- Mobile ---------- */
+
+@media(max-width:960px){
+  .images{
+    grid-template-columns:repeat(2, 1fr);
+    max-width:620px;
+    gap:32px;
+  }
+}
 
 @media(max-width:720px){
 
@@ -542,6 +550,11 @@ nav a:focus-visible::after{transform:scaleX(1);}
     <figure>
       <img src="status2-app-kamera.png" alt="Appens kameraskjerm for å ta bilde av et måltid" loading="lazy">
       <figcaption>Kamera for bildegjenkjenning av måltider</figcaption>
+    </figure>
+
+    <figure>
+      <img src="status2-app-registrert.png" alt="Skjermen Registrert mat med kylling, ris og brokkoli, mengde i gram og hvor sikker gjenkjenningen er, merket som testmodus" loading="lazy">
+      <figcaption>Gjenkjente matvarer med mengde og sikkerhet, her i testmodus</figcaption>
     </figure>
 
     <figure>
