@@ -7,7 +7,9 @@
 // "fatsecret:<id>". The mock's labels are plain text.
 
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router';
 
+import { PageHeader, StatTile } from '../components/ui';
 import { formatDateTime, formatNumber } from '../lib/format';
 import { supabase } from '../lib/supabase';
 import type { RecognitionEvent } from '../lib/types';
@@ -21,15 +23,20 @@ export function RecognitionPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
     void supabase
       .from('recognition_events')
       .select('id, provider, labels, unmatched_labels, created_at')
       .order('created_at', { ascending: false })
       .limit(LIMIT)
       .then(({ data, error }) => {
+        if (cancelled) return;
         if (error) setError(error.message);
         setEvents((data ?? []) as RecognitionEvent[]);
       });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (error) return <p className="error">Kunne ikke hente data: {error}</p>;
@@ -52,97 +59,134 @@ export function RecognitionPage() {
     }
   }
   const topUnmatched = [...unmatchedCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 30);
+  const totalLabels = events.reduce((s, e) => s + e.labels.length, 0);
+  const totalUnmatched = events.reduce((s, e) => s + e.unmatched_labels.length, 0);
 
   return (
-    <div className="stack">
-      <h1>Gjenkjenning</h1>
-      <p className="muted">
-        Basert på de siste {Math.min(events.length, LIMIT)} bildene. «Ikke funnet» = etiketten fikk ingen god match i
-        Matvaretabellen, og spilleren måtte velge selv.
-      </p>
+    <div className="stack-lg">
+      <PageHeader
+        title="Gjenkjenning"
+        subtitle={`Basert på de siste ${Math.min(events.length, LIMIT)} bildene. «Ikke funnet» = etiketten fikk ingen god match i Matvaretabellen, og spilleren måtte velge selv.`}
+      />
 
       {events.length === 0 ? (
         <p className="muted">Ingen bilder er gjenkjent ennå.</p>
       ) : (
         <>
-          <table>
-            <thead>
-              <tr>
-                <th>Gjenkjenner</th>
-                <th className="num">Bilder</th>
-                <th className="num">Etiketter</th>
-                <th className="num">Ikke funnet</th>
-                <th className="num">Andel ikke funnet</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...byProvider.values()].map((s) => (
-                <tr key={s.provider}>
-                  <td>{s.provider}</td>
-                  <td className="num">{s.photos}</td>
-                  <td className="num">{s.labels}</td>
-                  <td className="num">{s.unmatched}</td>
-                  <td className="num">{s.labels ? `${formatNumber((s.unmatched / s.labels) * 100)} %` : '–'}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div className="kpi-row">
+            <StatTile label="Bilder" value={events.length} />
+            <StatTile label="Etiketter" value={totalLabels} />
+            <StatTile
+              label="Funnet i Matvaretabellen"
+              value={totalLabels ? `${formatNumber(((totalLabels - totalUnmatched) / totalLabels) * 100)} %` : '–'}
+              sub={`${totalUnmatched} ikke funnet`}
+            />
+          </div>
 
-          <h2>Etiketter som oftest ikke blir funnet</h2>
-          <p className="muted small" style={{ margin: 0 }}>
-            Rett opp med en egendefinert matvare under «Matvarer» (engelsk navn = etiketten).
-          </p>
-          {topUnmatched.length === 0 ? (
-            <p className="muted">Alle etiketter har fått en match.</p>
-          ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>Etikett</th>
-                  <th>Gjenkjenner</th>
-                  <th className="num">Antall</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topUnmatched.map(([key, count]) => {
-                  const [provider, label] = key.split('|');
-                  return (
-                    <tr key={key}>
-                      <td>{label}</td>
-                      <td className="muted">{provider}</td>
-                      <td className="num">{count}</td>
+          <section className="card flush">
+            <div style={{ padding: '16px 20px 4px' }}>
+              <h2>Per gjenkjenner</h2>
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Gjenkjenner</th>
+                    <th className="num">Bilder</th>
+                    <th className="num">Etiketter</th>
+                    <th className="num">Ikke funnet</th>
+                    <th className="num">Andel ikke funnet</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...byProvider.values()].map((s) => (
+                    <tr key={s.provider}>
+                      <td>{s.provider}</td>
+                      <td className="num">{s.photos}</td>
+                      <td className="num">{s.labels}</td>
+                      <td className="num">{s.unmatched}</td>
+                      <td className="num">{s.labels ? `${formatNumber((s.unmatched / s.labels) * 100)} %` : '–'}</td>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          )}
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
 
-          <h2>Siste bilder</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Tid</th>
-                <th>Gjenkjenner</th>
-                <th>Etiketter</th>
-              </tr>
-            </thead>
-            <tbody>
-              {events.slice(0, 20).map((e) => (
-                <tr key={e.id}>
-                  <td className="muted">{formatDateTime(e.created_at)}</td>
-                  <td>{e.provider}</td>
-                  <td>
-                    {e.labels.map((label, i) => (
-                      <span key={i} className={`badge ${e.unmatched_labels.includes(label) ? 'off' : 'ok'}`} style={{ marginRight: 4 }}>
-                        {label}
-                      </span>
-                    ))}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <section className="card flush">
+            <div style={{ padding: '16px 20px 4px' }}>
+              <h2>Etiketter som oftest ikke blir funnet</h2>
+              <p className="faint small" style={{ margin: '4px 0 0' }}>
+                Rett opp med en egendefinert matvare under <Link to="/foods">Matvarer</Link> (engelsk navn = etiketten).
+              </p>
+            </div>
+            {topUnmatched.length === 0 ? (
+              <p className="muted" style={{ padding: '8px 20px 20px', margin: 0 }}>
+                Alle etiketter har fått en match.
+              </p>
+            ) : (
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Etikett</th>
+                      <th>Gjenkjenner</th>
+                      <th className="num">Antall</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {topUnmatched.map(([key, count]) => {
+                      const [provider, label] = key.split('|');
+                      return (
+                        <tr key={key}>
+                          <td>{label}</td>
+                          <td className="muted">{provider}</td>
+                          <td className="num">{count}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          <section className="card flush">
+            <div style={{ padding: '16px 20px 4px' }}>
+              <h2>Siste bilder</h2>
+            </div>
+            <div className="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Tid</th>
+                    <th>Gjenkjenner</th>
+                    <th>Etiketter (grønn = funnet, rød = ikke funnet)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {events.slice(0, 20).map((e) => (
+                    <tr key={e.id}>
+                      <td className="muted">{formatDateTime(e.created_at)}</td>
+                      <td>{e.provider}</td>
+                      <td>
+                        <div className="row" style={{ gap: 4 }}>
+                          {e.labels.map((label, i) => {
+                            const miss = e.unmatched_labels.includes(label);
+                            return (
+                              <span key={i} className={`pill ${miss ? 'off' : 'ok'}`}>
+                                {miss ? '✕' : '✓'} {label}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         </>
       )}
     </div>

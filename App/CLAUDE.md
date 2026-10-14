@@ -15,8 +15,9 @@ beginner-friendly code over clever code. Explain decisions when you make them.
   routing for the vision API call. Don't build features that assume real minors.
 - Built so far: the **player app** (camera → recognize → confirm/edit → save,
   Dagsoversikt with date navigation + calendar, water tracking, meal detail,
-  Profil, Personvernnotater) and the **admin panel** (users/roles, read-only
-  player data, foods editor, club settings, recognition coverage).
+  Profil, Personvernnotater) and the **admin panel** (Oversikt dashboard with
+  "Trenger oppfølging", users/roles/accounts, per-player page with editable
+  goals + charts, foods editor, club settings, recognition coverage).
 - Recognition runs on the **mock** by default. The FatSecret key currently lacks
   the `image-recognition` OAuth scope (it grants `basic premier barcode`), and
   FatSecret image recognition is a **14-day trial** — don't start it until we're
@@ -27,7 +28,7 @@ beginner-friendly code over clever code. Explain decisions when you make them.
 | Folder | What |
 | --- | --- |
 | `player-app/` | React Native + **Expo SDK 57** + TypeScript, Expo Router. Tested via **Expo Go**. Read `player-app/AGENTS.md` (Expo's own rules: use `npx expo install`, check versioned docs — Expo changes every SDK). |
-| `admin-panel/` | React + Vite + TypeScript + React Router 8. Desk tool, plain CSS, not mobile-optimised. |
+| `admin-panel/` | React + Vite + TypeScript + React Router 8 + lucide-react icons. Desk tool, plain CSS (dark, after the coach dashboard sketch), not mobile-optimised. |
 | `supabase/migrations/` | Schema, RLS, triggers, RPC functions. Apply with `npx supabase db push` (CLI is linked). |
 | `supabase/functions/admin-users/` | Edge Function (Deno) for account management from the admin panel. Deploy: `npx supabase functions deploy admin-users --use-api`. Typecheck: `npx deno check --config deno.json index.ts` in its folder. |
 | `scripts/seed-foods/` | Downloads Matvaretabellen (`/api/nb` + `/api/en` foods.json) and upserts into `foods`. Uses the **secret** key — local only. |
@@ -104,8 +105,17 @@ How to run everything: see `README.md`.
   the `log_meal()` RPC: one transaction, and **nutrition is computed in the
   database** from `foods` (the client sends only food ids + grams).
 - `water_logs` — one row per tap (1–2000 ml).
-- `club_settings` — single row, `id = 1` (int on purpose). Default goals are
-  **placeholders, not advice**; only the water goal is used by the app so far.
+- `club_settings` — single row, `id = 1` (int on purpose). The club's DEFAULT
+  goals — **placeholders, not advice**.
+- `player_goals` — optional per-player goals (admin-only write; player reads own).
+  Every column nullable: NULL = follow the club default. `updated_by/at` are set
+  by a trigger. `goals_for(user)` returns the effective goals (own value, else
+  club default; a caller who can't see the row just gets the defaults). The
+  player app's water goal comes from `goals_for()`.
+- Summary functions (security invoker → RLS applies):
+  `daily_summary(from, to, user?, tz='Europe/Oslo')` = totals per player per
+  **Norwegian local day** (meals, kcal, macros, water);
+  `last_activity()` = last meal/water timestamp per profile.
 - `recognition_events` — labels / unmatched labels per photo.
 
 ### Security: admin access is enforced by RLS, never by the client
@@ -175,6 +185,30 @@ How to run everything: see `README.md`.
   (with a `cancelled` flag). Don't `setState` synchronously inside effects.
 - Expo: add packages with `npx expo install`; only use modules that work in
   Expo Go (no custom native code) unless we decide to move to dev builds.
+
+### Admin panel conventions
+- **Look = the coach dashboard sketch** (dark slate + indigo). All colours are
+  CSS variables in `admin-panel/src/index.css`; shared pieces in
+  `src/components/ui.tsx` (PageHeader, StatTile, Meter, StatusLabel, Avatar, Segmented).
+- **Feedback:** `useFeedback()` → `toast(text, tone, {long})` and
+  `await confirm({...})`. Never use `window.alert/confirm`.
+- **Goal status** (`src/lib/status.ts`) is the coach sketch's four states:
+  Ikke logget / Langt fra målet / Nesten / Nådde målet, from kcal + water vs
+  goal (score ≥ 0.85 green, ≥ 0.5 orange). Status colours are reserved and
+  ALWAYS shown with icon + label. Today has no status until the day is over.
+  The Oversikt status bar uses **yesterday** (the last full day).
+- **Charts** are hand-built SVG (`ColumnChart`, `StatusStrip`), following the
+  dataviz skill:
+  - one series per chart, and never two y-axes
+  - columns ≤ 24 px, 4 px rounded tops, 2 px gaps
+  - the goal is a solid line with a direct label
+  - hover and keyboard tooltips; dimmed (not blanked) while reloading
+  - every chart has a table with the same numbers
+  - series colours `--series-kcal` (orange) and `--series-water` (blue) were
+    validated against the card surface with the skill's palette checker
+- Read the clock once per page (`useState(() => new Date())`), never in render.
+- Visual check: a temporary `@example.invalid` admin made with the secret key,
+  Playwright (headless Chromium) screenshots of every page, account deleted after.
 
 ### Checks before calling something done
 - Player app: `npx tsc --noEmit`, `npx expo lint`, `npx expo-doctor`. To be sure

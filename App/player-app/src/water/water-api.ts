@@ -48,15 +48,14 @@ export async function deleteWater(id: string) {
   if (error) throw error;
 }
 
-/** The club-wide daily goal set by admins in club_settings. */
+/**
+ * My daily water goal: my own goal if an admin set one for me, otherwise the
+ * club default. The database works this out (goals_for() in the migrations).
+ */
 export async function fetchWaterGoal(): Promise<number> {
-  const { data, error } = await supabase
-    .from('club_settings')
-    .select('default_goal_water_ml')
-    .eq('id', 1)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc('goals_for').maybeSingle<{ goal_water_ml: number }>();
   if (error) throw error;
-  return setCached('waterGoal', data?.default_goal_water_ml ?? 2500);
+  return setCached('waterGoal', data?.goal_water_ml ?? 2500);
 }
 
 export const sumWater = (logs: WaterLog[]) => logs.reduce((sum, l) => sum + l.amount_ml, 0);

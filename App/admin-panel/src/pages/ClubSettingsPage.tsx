@@ -1,11 +1,14 @@
 // KLUBBINNSTILLINGER: the single club_settings row (id = 1).
 // Readable by every logged-in user; only admins may update it (RLS).
 //
-// The goal values are a TEMPLATE for later sessions (coaches will adjust
-// goals per player). Right now the player app only uses the water goal.
+// The goal values are the club's DEFAULTS. A player follows them unless an
+// admin sets the player's own goals on their page (player_goals table).
+// The player app uses the water goal; the admin panel uses them all.
 
 import { useEffect, useState, type FormEvent } from 'react';
 
+import { PageHeader } from '../components/ui';
+import { useFeedback } from '../feedback/feedback-context';
 import { supabase } from '../lib/supabase';
 import type { ClubSettings } from '../lib/types';
 
@@ -23,7 +26,8 @@ type NumberKey = (typeof NUMBER_FIELDS)[number]['key'];
 export function ClubSettingsPage() {
   const [settings, setSettings] = useState<ClubSettings | null>(null);
   const [form, setForm] = useState<Record<'club_name' | NumberKey, string> | null>(null);
-  const [message, setMessage] = useState<{ text: string; ok: boolean } | null>(null);
+  const { toast } = useFeedback();
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -33,7 +37,7 @@ export function ClubSettingsPage() {
       .eq('id', 1)
       .single()
       .then(({ data, error }) => {
-        if (error || !data) return setMessage({ text: `Kunne ikke hente innstillinger: ${error?.message}`, ok: false });
+        if (error || !data) return setLoadError(error?.message ?? 'ukjent feil');
         showSettings(data as ClubSettings);
       });
   }, []);
@@ -53,15 +57,14 @@ export function ClubSettingsPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!form) return;
-    setMessage(null);
 
-    if (!form.club_name.trim()) return setMessage({ text: 'Klubbnavn kan ikke være tomt.', ok: false });
+    if (!form.club_name.trim()) return toast('Klubbnavn kan ikke være tomt.', 'error');
     const changes: Record<string, string | number> = { club_name: form.club_name.trim() };
     for (const { key, label } of NUMBER_FIELDS) {
       const value = Number(form[key]);
       // The database also checks these (CHECK constraints), this is just a friendlier message.
       if (!Number.isInteger(value) || value < 0 || (key === 'default_goal_kcal' && value === 0)) {
-        return setMessage({ text: `${label}: må være et helt tall ≥ 0.`, ok: false });
+        return toast(`${label}: må være et helt tall ≥ 0.`, 'error');
       }
       changes[key] = value;
     }
@@ -74,16 +77,18 @@ export function ClubSettingsPage() {
       .select('club_name, default_goal_kcal, default_goal_protein_g, default_goal_carbs_g, default_goal_fat_g, default_goal_water_ml, updated_at')
       .single();
     setBusy(false);
-    if (error || !data) return setMessage({ text: `Kunne ikke lagre: ${error?.message ?? 'ingen tilgang'}`, ok: false });
+    if (error || !data) return toast(`Kunne ikke lagre: ${error?.message ?? 'ingen tilgang'}`, 'error');
     showSettings(data as ClubSettings);
-    setMessage({ text: 'Lagret.', ok: true });
+    toast('Klubbinnstillingene er lagret.');
   }
 
-  if (!form || !settings) return message ? <p className="error">{message.text}</p> : <p className="muted">Laster…</p>;
+  if (loadError) return <p className="error">Kunne ikke hente innstillinger: {loadError}</p>;
+  if (!form || !settings) return <p className="muted">Laster…</p>;
 
   return (
-    <form className="stack" style={{ maxWidth: 520 }} onSubmit={handleSubmit}>
-      <h1>Klubbinnstillinger</h1>
+    <div className="stack-lg">
+      <PageHeader title="Klubbinnstillinger" subtitle="Gjelder hele klubben" />
+      <form className="card stack" style={{ maxWidth: 620 }} onSubmit={handleSubmit}>
 
       <label>
         Klubb / lag
@@ -92,8 +97,8 @@ export function ClubSettingsPage() {
 
       <h2>Standard dagsmål</h2>
       <p className="muted" style={{ margin: 0 }}>
-        Plassholderverdier — ikke ernæringsråd. Bør settes av en kvalifisert person. Spillerappen bruker foreløpig
-        bare vannmålet; resten blir mal for trenerens mål per spiller senere.
+        Brukes for alle som ikke har egne mål. Egne mål per spiller settes på spillerens side («Juster mål»).
+        Plassholderverdier — ikke ernæringsråd; bør settes av en kvalifisert person.
       </p>
       <div className="grid-2">
         {NUMBER_FIELDS.map(({ key, label, unit }) => (
@@ -104,13 +109,13 @@ export function ClubSettingsPage() {
         ))}
       </div>
 
-      {message && <p className={message.ok ? 'success' : 'error'}>{message.text}</p>}
       <div className="row">
         <button type="submit" className="primary" disabled={busy}>
           {busy ? 'Lagrer…' : 'Lagre'}
         </button>
         <span className="muted small">Sist endret {new Date(settings.updated_at).toLocaleString('nb-NO')}</span>
       </div>
-    </form>
+      </form>
+    </div>
   );
 }

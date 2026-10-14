@@ -10,7 +10,11 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
+import { Plus, Search } from 'lucide-react';
+
 import { FoodForm, type FoodDraft } from '../components/FoodForm';
+import { PageHeader } from '../components/ui';
+import { useFeedback } from '../feedback/feedback-context';
 import { formatNumber } from '../lib/format';
 import { supabase } from '../lib/supabase';
 import { NUTRIENTS, type Food } from '../lib/types';
@@ -30,7 +34,7 @@ export function FoodsPage() {
   const [query, setQuery] = useState('');
   const [foods, setFoods] = useState<Food[] | null>(null);
   const [panel, setPanel] = useState<Panel>({ kind: 'none' });
-  const [message, setMessage] = useState<string | null>(null);
+  const { toast, confirm } = useFeedback();
 
   // Empty search → list our custom foods. Otherwise → the same fuzzy search
   // the player app uses, so you see what players would see.
@@ -58,14 +62,13 @@ export function FoodsPage() {
   async function openFood(food: Food) {
     const { data } = await supabase.from('foods').select(FOOD_COLUMNS).eq('id', food.id).single();
     const full = (data ?? food) as Food;
-    setMessage(null);
     setPanel(full.source === 'custom' ? { kind: 'edit', food: full } : { kind: 'view', food: full });
   }
 
   async function create(draft: FoodDraft) {
     const { error } = await supabase.from('foods').insert({ ...draft, source: 'custom' });
     if (error) return error.message;
-    setMessage(`«${draft.name_nb}» er lagt til.`);
+    toast(`«${draft.name_nb}» er lagt til.`);
     setPanel({ kind: 'none' });
     void load(query);
     return null;
@@ -75,93 +78,110 @@ export function FoodsPage() {
     const { data, error } = await supabase.from('foods').update(draft).eq('id', id).select('id');
     if (error) return error.message;
     if (!data?.length) return 'Ingen tilgang til å endre denne matvaren.';
-    setMessage(`«${draft.name_nb}» er lagret.`);
+    toast(`«${draft.name_nb}» er lagret.`);
     setPanel({ kind: 'none' });
     void load(query);
     return null;
   }
 
   async function remove(food: Food) {
-    if (!window.confirm(`Slette «${food.name_nb}»? Måltider som allerede er logget beholder verdiene sine.`)) return;
+    const ok = await confirm({
+      title: `Slette «${food.name_nb}»?`,
+      body: 'Måltider som allerede er logget beholder verdiene sine.',
+      confirmLabel: 'Slett',
+      danger: true,
+    });
+    if (!ok) return;
     const { error } = await supabase.from('foods').delete().eq('id', food.id);
-    setMessage(error ? `Kunne ikke slette: ${error.message}` : `«${food.name_nb}» er slettet.`);
+    if (error) toast(`Kunne ikke slette: ${error.message}`, 'error');
+    else toast(`«${food.name_nb}» er slettet.`);
     setPanel({ kind: 'none' });
     void load(query);
   }
 
   return (
-    <div className="stack">
-      <div className="row spread">
-        <h1 style={{ margin: 0 }}>Matvarer</h1>
-        <button className="primary" onClick={() => setPanel({ kind: 'new', draft: EMPTY_DRAFT })}>
-          + Ny egendefinert matvare
-        </button>
-      </div>
+    <div className="stack-lg">
+      <PageHeader
+        title="Matvarer"
+        subtitle="Matvaretabellen (2 121 matvarer) + egendefinerte"
+        actions={
+          <button className="primary" onClick={() => setPanel({ kind: 'new', draft: EMPTY_DRAFT })}>
+            <Plus size={15} /> Ny egendefinert matvare
+          </button>
+        }
+      />
       <p className="hint">
         Tips: Hvis gjenkjenningen gir en etikett som ikke finnes (se «Gjenkjenning»), lag en egendefinert matvare med{' '}
         <strong>engelsk navn lik etiketten</strong>, f.eks. «chicken breast». Appen velger den automatisk etter det.
       </p>
-      {message && <p className="success">{message}</p>}
 
       <div className="split">
         <div className="stack">
-          <input
-            type="search"
-            placeholder="Søk i alle matvarer (norsk eller engelsk) — tomt felt viser egendefinerte"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
+          <div className="search">
+            <Search size={15} />
+            <input
+              type="search"
+              placeholder="Søk i alle matvarer (norsk eller engelsk) — tomt felt viser egendefinerte"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          </div>
           {foods === null ? (
             <p className="muted">Laster…</p>
           ) : foods.length === 0 ? (
             <p className="muted">{query ? 'Ingen treff.' : 'Ingen egendefinerte matvarer ennå.'}</p>
           ) : (
-            <table>
-              <thead>
-                <tr>
-                  <th>Navn</th>
-                  <th>Kilde</th>
-                  <th className="num">kcal</th>
-                  <th className="num">Protein</th>
-                  <th className="num">Karbo</th>
-                  <th className="num">Fett</th>
-                  <th>Porsjon</th>
-                </tr>
-              </thead>
-              <tbody>
-                {foods.map((food) => {
-                  const selected = 'food' in panel && panel.food.id === food.id;
-                  return (
-                    <tr
-                      key={food.id}
-                      className={`clickable ${selected ? 'selected' : ''}`}
-                      onClick={() => void openFood(food)}>
-                      <td>
-                        {food.name_nb}
-                        {food.name_en && <div className="muted small">{food.name_en}</div>}
-                      </td>
-                      <td>
-                        <span className={`badge ${food.source === 'custom' ? 'custom' : ''}`}>
-                          {food.source === 'custom' ? 'Egendefinert' : 'Matvaretabellen'}
-                        </span>
-                      </td>
-                      <td className="num">{formatNumber(food.nutrition.energy_kcal)}</td>
-                      <td className="num">{formatNumber(food.nutrition.protein_g, 1)}</td>
-                      <td className="num">{formatNumber(food.nutrition.carbs_g, 1)}</td>
-                      <td className="num">{formatNumber(food.nutrition.fat_g, 1)}</td>
-                      <td className="muted small">
-                        {food.portions[0] ? `${food.portions[0].name} = ${formatNumber(food.portions[0].grams)} g` : '–'}
-                      </td>
+            <div className="card flush">
+              <div className="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Navn</th>
+                      <th>Kilde</th>
+                      <th className="num">kcal</th>
+                      <th className="num">Protein</th>
+                      <th className="num">Karbo</th>
+                      <th className="num">Fett</th>
+                      <th>Porsjon</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                  </thead>
+                  <tbody>
+                    {foods.map((food) => {
+                      const selected = 'food' in panel && panel.food.id === food.id;
+                      return (
+                        <tr
+                          key={food.id}
+                          className={`clickable ${selected ? 'selected' : ''}`}
+                          onClick={() => void openFood(food)}>
+                          <td>
+                            {food.name_nb}
+                            {food.name_en && <div className="muted small">{food.name_en}</div>}
+                          </td>
+                          <td>
+                            <span className={`pill ${food.source === 'custom' ? 'warn' : ''}`}>
+                              {food.source === 'custom' ? 'Egendefinert' : 'Matvaretabellen'}
+                            </span>
+                          </td>
+                          <td className="num">{formatNumber(food.nutrition.energy_kcal)}</td>
+                          <td className="num">{formatNumber(food.nutrition.protein_g, 1)}</td>
+                          <td className="num">{formatNumber(food.nutrition.carbs_g, 1)}</td>
+                          <td className="num">{formatNumber(food.nutrition.fat_g, 1)}</td>
+                          <td className="muted small">
+                            {food.portions[0] ? `${food.portions[0].name} = ${formatNumber(food.portions[0].grams)} g` : '–'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+
+                </table>
+              </div>
+            </div>
           )}
-          <p className="muted small">Verdier per 100 g.</p>
+          <p className="faint small" style={{ margin: 0 }}>Verdier per 100 g.</p>
         </div>
 
-        <aside className="card stack">
+        <aside className="card stack" style={{ position: 'sticky', top: 24 }}>
           {panel.kind === 'none' && <p className="muted">Velg en matvare i listen, eller lag en ny.</p>}
 
           {panel.kind === 'view' && (

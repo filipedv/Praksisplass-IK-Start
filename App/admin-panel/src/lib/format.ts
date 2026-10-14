@@ -22,6 +22,13 @@ export function toISODate(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+/** "2026-10-14" + n days → "2026-10-14"-style string (calendar days, DST-safe). */
+export function addDaysIso(iso: string, n: number): string {
+  const d = new Date(`${iso}T12:00:00`); // noon: never near a DST switch
+  d.setDate(d.getDate() + n);
+  return toISODate(d);
+}
+
 /** Add several nutrition objects together. */
 export function sumNutrition(list: Nutrition[]): Nutrition {
   const total: Nutrition = {};

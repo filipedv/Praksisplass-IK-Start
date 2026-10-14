@@ -1,7 +1,8 @@
 // Routes (URLs) of the admin panel:
 //
-//   /                → Brukere (user list)
-//   /users/:id       → one user's logged meals and water (read-only)
+//   /                → Oversikt (start page: key numbers, follow-up, everyone today)
+//   /users           → Brukere (accounts, roles, active/inactive)
+//   /users/:id       → one player: goals, charts, days and meals
 //   /foods           → Matvarer (search + custom foods editor)
 //   /settings        → Klubbinnstillinger
 //   /recognition     → Gjenkjenning (how well recognizer labels match)
@@ -14,19 +15,23 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 import { useAuth } from './auth/auth-context';
 import { AuthProvider } from './auth/AuthProvider';
 import { Layout } from './components/Layout';
+import { FeedbackProvider } from './feedback/FeedbackProvider';
 import { ClubSettingsPage } from './pages/ClubSettingsPage';
 import { FoodsPage } from './pages/FoodsPage';
 import { LoginPage } from './pages/LoginPage';
+import { OverviewPage } from './pages/OverviewPage';
+import { PlayerPage } from './pages/PlayerPage';
 import { RecognitionPage } from './pages/RecognitionPage';
-import { UserDataPage } from './pages/UserDataPage';
 import { UsersPage } from './pages/UsersPage';
 
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Gate />
-      </BrowserRouter>
+      <FeedbackProvider>
+        <BrowserRouter>
+          <Gate />
+        </BrowserRouter>
+      </FeedbackProvider>
     </AuthProvider>
   );
 }
@@ -40,9 +45,9 @@ function Gate() {
 
   if (!isAdmin) {
     return (
-      <div className="center narrow">
+      <div className="center narrow card stack">
         <h1>Ingen admintilgang</h1>
-        <p className="muted">
+        <p className="muted" style={{ margin: 0 }}>
           Kontoen din er ikke administrator (eller er deaktivert). En administrator kan gi deg rollen, eller den
           kan settes én gang i Supabase-dashboardet — se README.
         </p>
@@ -54,8 +59,9 @@ function Gate() {
   return (
     <Routes>
       <Route element={<Layout />}>
-        <Route index element={<UsersPage />} />
-        <Route path="users/:id" element={<UserDataPage />} />
+        <Route index element={<OverviewPage />} />
+        <Route path="users" element={<UsersPage />} />
+        <Route path="users/:id" element={<PlayerPage />} />
         <Route path="foods" element={<FoodsPage />} />
         <Route path="settings" element={<ClubSettingsPage />} />
         <Route path="recognition" element={<RecognitionPage />} />
