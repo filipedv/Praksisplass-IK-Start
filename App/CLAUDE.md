@@ -102,12 +102,21 @@ How to run everything: see `README.md`.
   labels are English) and `search_keywords`. Ranking tie-breakers follow
   Matvaretabellen's naming ("Apple, raw"): exact name > "label," > "label " >
   plural > generic ("raw"/"unspecified") > shorter name.
-- The app treats `score >= 0.7` as matched (`MATCH_THRESHOLD` in
-  `foods-api.ts`); below that the user picks the food. Every recognition writes
-  a `recognition_events` row (storable ids only) so we can measure coverage on
-  the admin panel's **Gjenkjenning** page.
-- Fixing a bad match = an admin creates a **custom** food whose English name is
-  the label. Seeded rows are never edited (the seed would overwrite them).
+- **Matching order** (`matchGuesses` in `player-app/src/nutrition/foods-api.ts`):
+  1. an admin's **link** in `food_aliases` for the guess's `storableId`, then
+     its `label`
+  2. the best `search_foods()` hit if `score >= 0.7` (`MATCH_THRESHOLD`)
+  3. otherwise null, and the user picks the food
+  If the link lookup fails, it silently falls back to step 2.
+- Every recognition writes a `recognition_events` row (storable ids only), so
+  coverage can be measured on the admin panel's **Gjenkjenning** page. A
+  linked label counts as matched from then on; past events are not rewritten.
+- **Fixing a bad or missing match = linking the label** to the right existing
+  food. Use "Koble til matvare" on Gjenkjenning, or "Koble hit" in a food's
+  panel on Matvarer. Don't copy foods for this: a copy duplicates the
+  nutrition data and misses Matvaretabellen's yearly updates. Make a
+  **custom** food only when the food really is missing from Matvaretabellen.
+  Seeded rows are never edited (the seed would overwrite them).
 
 ### Privacy by design
 - The meal photo is **never stored**: it's deleted from the phone right after
@@ -141,6 +150,10 @@ How to run everything: see `README.md`.
   **Norwegian local day** (meals, kcal, macros, water);
   `last_activity()` = last meal/water timestamp per profile.
 - `recognition_events` — labels / unmatched labels per photo.
+- `food_aliases` — the link list: `label` (unique, lower-cased and trimmed by a
+  trigger; a plain label or a storable id like `fatsecret:123`) → `food_id`
+  (cascade on food delete). Any signed-in user may read (the app needs it);
+  only active admins may write. `created_by` is set by the trigger.
 
 ### Security: admin access is enforced by RLS, never by the client
 - **Both apps are untrusted** and use the public key. RLS is enabled on every table.
