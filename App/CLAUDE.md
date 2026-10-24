@@ -50,6 +50,30 @@ How to run everything: see `README.md`.
   `scripts/seed-foods/.env`. All `.env` files are git-ignored; each part has a
   committed `.env.example`.
 
+## Git workflow (team of three)
+
+- **Never commit to `main`.** Work happens on a branch, one per task or
+  person (e.g. `AdminPanelFilip`, `feature/sok-i-matvarer`, `fix/vann-maal`).
+  Before starting, check the current branch (`git status -sb`). If it's
+  `main`, stop and ask which branch to use.
+- Start branches from an up-to-date `main`; keep them small and short-lived.
+- Merge into `main` only through a **pull request**, reviewed by a teammate.
+  `main` should be protected on GitHub (require a PR before merging).
+- Commit only when asked. The students commit and push themselves, usually
+  from GitHub Desktop.
+- **The Supabase project is shared by every branch and every teammate.**
+  Branches separate code, not the database. So:
+  - Migrations (`npx supabase db push`) and Edge Function deploys hit everyone
+    at once, whatever branch is checked out. Ask before running them.
+  - Changes that only **add** things (new tables/columns/functions) may be
+    pushed from a branch while testing. Changes that **alter or remove**
+    existing things wait until the PR is merged into `main`.
+  - Always add a **new** migration file; never edit one that has already been
+    applied. Give it a timestamp later than every existing migration, on
+    `main` and on open branches.
+  - Before real players are onboarded: use a separate test database (a second
+    Supabase project, or Supabase branching).
+
 ## Architecture
 
 ### Food recognition (swappable)
