@@ -4,6 +4,7 @@
 
 import { toISODate } from './format';
 import { supabase } from './supabase';
+import type { Team } from './types';
 
 /** One player's totals for one day (from daily_summary()). */
 export type DaySummary = {
@@ -70,18 +71,22 @@ export async function fetchLastActivity(): Promise<LastActivity[]> {
   return data ?? [];
 }
 
-/** Club defaults + every player's own goals → effective goals per player. */
-export async function fetchAllGoals(): Promise<{ defaults: Goals; byUser: Map<string, PlayerGoalsRow> }> {
-  const [club, own] = await Promise.all([
+export type AllGoals = { defaults: Goals; byUser: Map<string, PlayerGoalsRow>; teams: Map<string, Team> };
+
+/** Club defaults + every team's goals + every player's own goals. */
+export async function fetchAllGoals(): Promise<AllGoals> {
+  const [club, own, teams] = await Promise.all([
     supabase
       .from('club_settings')
       .select('default_goal_kcal, default_goal_protein_g, default_goal_carbs_g, default_goal_fat_g, default_goal_water_ml')
       .eq('id', 1)
       .single(),
     supabase.from('player_goals').select('user_id, goal_kcal, goal_protein_g, goal_carbs_g, goal_fat_g, goal_water_ml'),
+    supabase.from('teams').select('id, name, sort_order, goal_kcal, goal_protein_g, goal_carbs_g, goal_fat_g, goal_water_ml'),
   ]);
   if (club.error) throw club.error;
   if (own.error) throw own.error;
+  if (teams.error) throw teams.error;
   const c = club.data;
   return {
     defaults: {
@@ -92,12 +97,23 @@ export async function fetchAllGoals(): Promise<{ defaults: Goals; byUser: Map<st
       goal_water_ml: c.default_goal_water_ml,
     },
     byUser: new Map((own.data ?? []).map((g: PlayerGoalsRow) => [g.user_id, g])),
+    teams: new Map((teams.data ?? []).map((t: Team) => [t.id, t])),
   };
 }
 
-/** Own value where set, else the club default — same rule as goals_for() in SQL. */
-export function effectiveGoals(defaults: Goals, own: PlayerGoalsRow | undefined): Goals {
-  const pick = (key: keyof Goals) => own?.[key] ?? defaults[key];
+export type GoalSource = 'own' | 'team' | 'club';
+export const GOAL_SOURCE_LABELS: Record<GoalSource, string> = { own: 'Eget', team: 'Lag', club: 'Klubb' };
+
+/** Where a player's goal for one field comes from: own → team → club. */
+export function goalSource(key: keyof Goals, own: PlayerGoalsRow | undefined, team: Team | undefined): GoalSource {
+  if (own?.[key] != null) return 'own';
+  if (team?.[key] != null) return 'team';
+  return 'club';
+}
+
+/** Own value, else the team's, else the club default — same rule as effective_goals() in SQL. */
+export function effectiveGoals(defaults: Goals, own: PlayerGoalsRow | undefined, team?: Team): Goals {
+  const pick = (key: keyof Goals) => own?.[key] ?? team?.[key] ?? defaults[key];
   return {
     goal_kcal: pick('goal_kcal'),
     goal_protein_g: pick('goal_protein_g'),

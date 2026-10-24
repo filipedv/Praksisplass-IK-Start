@@ -55,3 +55,8 @@ export function generatePassword(length = 12): string {
   const random = crypto.getRandomValues(new Uint32Array(length));
   return Array.from(random, (n) => alphabet[n % alphabet.length]).join('');
 }
+
+/** PERMANENTLY delete an account and all its data (GDPR right to erasure). */
+export function deleteAccount(userId: string) {
+  return call<{ ok: true }>({ action: 'delete', user_id: userId });
+}

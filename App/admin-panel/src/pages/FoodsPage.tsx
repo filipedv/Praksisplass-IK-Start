@@ -8,9 +8,9 @@
 // name is exactly the label (e.g. "chicken breast"). search_foods() ranks an
 // exact name match first, so the app will pick it from then on.
 
-import { useCallback, useEffect, useState } from 'react';
-
 import { Plus, Search } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router';
 
 import { FoodForm, type FoodDraft } from '../components/FoodForm';
 import { FoodLinks } from '../components/FoodLinks';
@@ -31,8 +31,18 @@ type Panel =
   | { kind: 'edit'; food: Food } // a custom food
   | { kind: 'new'; draft: FoodDraft; copiedFrom?: string };
 
+/**
+ * /foods?q=<text> (used by ⌘K quick search) starts the search with that text.
+ * The `key` makes React start the page fresh whenever ?q= changes.
+ */
 export function FoodsPage() {
-  const [query, setQuery] = useState('');
+  const [searchParams] = useSearchParams();
+  const q = searchParams.get('q') ?? '';
+  return <FoodsPageContent key={q} initialQuery={q} />;
+}
+
+function FoodsPageContent({ initialQuery }: { initialQuery: string }) {
+  const [query, setQuery] = useState(initialQuery);
   const [foods, setFoods] = useState<Food[] | null>(null);
   const [panel, setPanel] = useState<Panel>({ kind: 'none' });
   const { toast, confirm } = useFeedback();

@@ -14,6 +14,8 @@ export type ConfirmOptions = {
   body?: string;
   confirmLabel?: string;
   danger?: boolean; // red confirm button for destructive actions
+  /** For irreversible actions: the user must type this exact text first. */
+  requireText?: string;
 };
 
 export type FeedbackValue = {

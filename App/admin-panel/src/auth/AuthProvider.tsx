@@ -8,7 +8,7 @@ import type { Session } from '@supabase/supabase-js';
 import { useEffect, useState, type PropsWithChildren } from 'react';
 
 import { supabase } from '../lib/supabase';
-import type { Profile } from '../lib/types';
+import { PROFILE_COLUMNS, type Profile } from '../lib/types';
 
 import { AuthContext } from './auth-context';
 
@@ -28,7 +28,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       }
       const { data } = await supabase
         .from('profiles')
-        .select('id, display_name, role, is_active, created_at')
+        .select(PROFILE_COLUMNS)
         .eq('id', newSession.user.id)
         .maybeSingle();
       setProfile(data);

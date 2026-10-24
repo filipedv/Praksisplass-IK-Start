@@ -1,36 +1,46 @@
 // ONE PLAYER (route /users/:id) — everything an admin needs about one person:
-//   - who they are (name, role, email, last login)
-//   - their goals, editable ("Juster mål")
-//   - a date range filter that scopes EVERYTHING below it
+//   - who they are (name, role, team, email, last login, who created the account)
+//   - their goals, editable ("Juster mål"; own → team → club)
+//   - a date range filter that scopes EVERYTHING below it (remembered)
 //   - key numbers, kcal + water per day vs goal, goal status per day
-//   - one selected day in detail (totals vs goals, the meals)
+//   - one selected day in detail, where meal items can be CORRECTED
 //   - a day-by-day table with every number (the charts' table view)
+//   - exports (CSV, and all data as JSON for GDPR access requests)
+//   - recent changes about this player (change log)
+//   - danger zone: permanent deletion (GDPR right to erasure)
 //
-// Reading another user's data works only because RLS lets active admins.
-// Meals are view-only here (editing other users' meals is a later session).
+// Reading and correcting another user's data works only because RLS lets
+// active admins; corrections are recorded in the change log by the database.
 
-import { ArrowLeft, ChevronLeft, ChevronRight, Droplet } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, Download, Droplet, FileJson, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 
+import { useAuth } from '../auth/auth-context';
+import { ChangeList } from '../components/ChangeList';
 import { ColumnChart } from '../components/ColumnChart';
+import { DayMealsTable } from '../components/DayMealsTable';
 import { GoalsCard } from '../components/GoalsCard';
 import { StatusStrip } from '../components/StatusStrip';
 import { Avatar, Meter, PageHeader, Segmented, StatTile, StatusLabel } from '../components/ui';
-import { listAccounts, type AccountInfo } from '../lib/admin-users';
-import { addDaysIso, formatDateTime, formatNumber, formatTime, toISODate } from '../lib/format';
-import { computeStatus, type Status } from '../lib/status';
+import { useFeedback } from '../feedback/feedback-context';
+import { deleteAccount, listAccounts, type AccountInfo } from '../lib/admin-users';
+import { fetchAudit } from '../lib/audit-api';
+import { addDaysIso, formatDateTime, formatNumber, toISODate } from '../lib/format';
+import { usePersistentState } from '../lib/persist';
+import { exportAllDataJson, exportDaysCsv, exportMealsCsv } from '../lib/player-export';
+import { STATUS_LABELS, computeStatus, type Status } from '../lib/status';
 import {
   daysBetween,
   effectiveGoals,
   fetchAllGoals,
   fetchDailySummary,
+  type AllGoals,
   type DaySummary,
-  type Goals,
-  type PlayerGoalsRow,
 } from '../lib/summary-api';
 import { supabase } from '../lib/supabase';
-import { ROLE_LABELS, type Meal, type Profile } from '../lib/types';
+import { setUserTeam } from '../lib/teams-api';
+import { ROLE_LABELS, type AuditEntry, type Meal, type Profile, PROFILE_COLUMNS } from '../lib/types';
 
 const RANGES = [7, 14, 30, 90] as const;
 type Range = (typeof RANGES)[number];
@@ -39,26 +49,27 @@ type PageData = {
   requestKey: string; // which player/range/reload this data belongs to
   user: Profile | null;
   account: AccountInfo | undefined;
-  defaults: Goals;
-  own: PlayerGoalsRow | undefined;
+  goals: AllGoals;
   summary: DaySummary[];
+  changes: AuditEntry[];
 };
 
 async function fetchPageData(id: string, fromIso: string, toIso: string, requestKey: string): Promise<PageData> {
-  const [profile, goals, summary, accounts] = await Promise.all([
-    supabase.from('profiles').select('id, display_name, role, is_active, created_at').eq('id', id).maybeSingle(),
+  const [profile, goals, summary, accounts, changes] = await Promise.all([
+    supabase.from('profiles').select(PROFILE_COLUMNS).eq('id', id).maybeSingle(),
     fetchAllGoals(),
     fetchDailySummary(fromIso, toIso, id),
     listAccounts(),
+    fetchAudit({ subjectUserId: id, limit: 15 }),
   ]);
   if (profile.error) throw profile.error;
   return {
     requestKey,
     user: profile.data as Profile | null,
     account: accounts.data?.find((a) => a.id === id),
-    defaults: goals.defaults,
-    own: goals.byUser.get(id),
+    goals,
     summary,
+    changes,
   };
 }
 
@@ -85,10 +96,14 @@ const longDay = (iso: string) => {
 
 export function PlayerPage() {
   const { id = '' } = useParams<{ id: string }>();
-  const [range, setRange] = useState<Range>(14);
+  const navigate = useNavigate();
+  const { toast, confirm } = useFeedback();
+  const { profile: me } = useAuth();
+  const [range, setRange] = usePersistentState<Range>('player-range', 14);
   const [data, setData] = useState<PageData | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  const [exporting, setExporting] = useState(false);
 
   // Read the clock once when the page opens (not on every render).
   const [todayIso] = useState(() => toISODate(new Date()));
@@ -96,7 +111,7 @@ export function PlayerPage() {
   const [selectedDay, setSelectedDay] = useState(todayIso);
   const [dayMeals, setDayMeals] = useState<Meal[] | null>(null);
 
-  // Page data: reload when the player, the range, or saved goals change.
+  // Page data: reload when the player, the range, or something saved changes.
   // While a new request runs we keep showing the previous data, dimmed —
   // "loading" simply means "the data on screen is for another request".
   const requestKey = `${id}|${fromIso}|${todayIso}|${reloadKey}`;
@@ -115,7 +130,7 @@ export function PlayerPage() {
     };
   }, [id, fromIso, todayIso, requestKey]);
 
-  // The selected day's meals.
+  // The selected day's meals (reloaded after a correction, via reloadKey).
   useEffect(() => {
     let cancelled = false;
     fetchDayMeals(id, selectedDay)
@@ -124,7 +139,7 @@ export function PlayerPage() {
     return () => {
       cancelled = true;
     };
-  }, [id, selectedDay]);
+  }, [id, selectedDay, reloadKey]);
 
   if (error && !data) return <p className="error">Kunne ikke hente data: {error}</p>;
   if (!data) return <p className="muted">Laster…</p>;
@@ -138,9 +153,15 @@ export function PlayerPage() {
   }
 
   const user = data.user;
-  const goals = effectiveGoals(data.defaults, data.own);
+  const team = user.team_id ? data.goals.teams.get(user.team_id) : undefined;
+  const own = data.goals.byUser.get(user.id);
+  const goals = effectiveGoals(data.goals.defaults, own, team);
   const byDay = new Map(data.summary.map((s) => [s.day, s]));
   const days = daysBetween(new Date(`${fromIso}T12:00`), new Date(`${todayIso}T12:00`));
+  const reload = () => setReloadKey((k) => k + 1);
+
+  // Who created the account? Only known for accounts made in the admin panel.
+  const created = data.changes.find((c) => c.table_name === 'accounts' && c.action === 'insert');
 
   // Per day: totals + status. Today is still in progress → no status yet.
   const perDay = days.map((day) => {
@@ -165,6 +186,54 @@ export function PlayerPage() {
     if (next <= todayIso) setSelectedDay(next);
   };
 
+  // Names for ids in the change list (teams + this player).
+  const names = new Map<string, string>([[user.id, user.display_name], ...[...data.goals.teams.values()].map((t) => [t.id, t.name] as [string, string])]);
+
+  async function changeTeam(teamId: string) {
+    try {
+      await setUserTeam(user.id, teamId || null);
+      const name = teamId ? data!.goals.teams.get(teamId)?.name : null;
+      toast(name ? `${user.display_name} er nå på ${name}.` : `${user.display_name} er tatt ut av laget.`);
+      reload();
+    } catch (e) {
+      toast(`Kunne ikke bytte lag: ${(e as Error).message}`, 'error');
+    }
+  }
+
+  async function runExport(kind: 'days' | 'meals' | 'all') {
+    setExporting(true);
+    try {
+      if (kind === 'days') {
+        exportDaysCsv(user.display_name, fromIso, todayIso, perDay.map((d) => ({ ...d, status: d.status ? STATUS_LABELS[d.status] : 'Pågår' })));
+      } else if (kind === 'meals') {
+        await exportMealsCsv(user.id, user.display_name, fromIso, todayIso);
+      } else {
+        await exportAllDataJson(user.id, user.display_name);
+      }
+    } catch (e) {
+      toast(`Eksporten feilet: ${(e as Error).message}`, 'error');
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function deletePermanently() {
+    const ok = await confirm({
+      title: `Slette ${user.display_name} permanent?`,
+      body:
+        'Kontoen og ALLE data slettes for godt: måltider, vann, mål og gjenkjenningshistorikk. ' +
+        'Dette kan ikke angres. Vurder å laste ned dataene først (knappen over), og bruk heller «Deaktiver» hvis personen kanskje kommer tilbake.',
+      confirmLabel: 'Slett permanent',
+      danger: true,
+      requireText: user.display_name,
+    });
+    if (!ok) return;
+    const result = await deleteAccount(user.id);
+    if (result.error) return toast(`Kunne ikke slette: ${result.error}`, 'error');
+    toast(`${user.display_name} og alle tilhørende data er slettet.`);
+    navigate('/users');
+  }
+
   return (
     <div className="stack-lg">
       <Link to="/" className="row muted" style={{ gap: 6 }}>
@@ -180,6 +249,18 @@ export function PlayerPage() {
               <span className="row" style={{ gap: 8, marginTop: 6 }}>
                 <span className="pill">{ROLE_LABELS[user.role]}</span>
                 <span className={`pill ${user.is_active ? 'ok' : 'off'}`}>{user.is_active ? 'Aktiv' : 'Deaktivert'}</span>
+                <select
+                  value={user.team_id ?? ''}
+                  onChange={(e) => void changeTeam(e.target.value)}
+                  aria-label="Lag"
+                  style={{ padding: '2px 8px', fontSize: 12, borderRadius: 999 }}>
+                  <option value="">Uten lag</option>
+                  {[...data.goals.teams.values()].map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
               </span>
             </span>
           </span>
@@ -190,6 +271,10 @@ export function PlayerPage() {
             <span className="faint small">
               Sist innlogget {data.account?.last_sign_in_at ? formatDateTime(data.account.last_sign_in_at) : 'aldri'}
             </span>
+            <span className="faint small">
+              Opprettet {new Date(user.created_at).toLocaleDateString('nb-NO')}
+              {created?.actor_name ? ` av ${created.actor_name}` : ''}
+            </span>
             <Link to="/users" className="small">
               Rediger konto under Brukere
             </Link>
@@ -198,16 +283,26 @@ export function PlayerPage() {
       />
 
       {/* One filter row, above everything it scopes */}
-      <div className="row">
-        <Segmented
-          label="Periode"
-          value={range}
-          onChange={setRange}
-          options={RANGES.map((r) => ({ value: r, label: `${r} dager` }))}
-        />
-        <span className="faint small">
-          {longDay(fromIso)} – i dag {loading ? '· oppdaterer…' : ''}
-        </span>
+      <div className="row spread">
+        <div className="row">
+          <Segmented
+            label="Periode"
+            value={range}
+            onChange={setRange}
+            options={RANGES.map((r) => ({ value: r, label: `${r} dager` }))}
+          />
+          <span className="faint small">
+            {longDay(fromIso)} – i dag {loading ? '· oppdaterer…' : ''}
+          </span>
+        </div>
+        <div className="row" style={{ gap: 8 }}>
+          <button className="small" disabled={exporting} onClick={() => void runExport('days')}>
+            <Download size={13} /> Dager (CSV)
+          </button>
+          <button className="small" disabled={exporting} onClick={() => void runExport('meals')}>
+            <Download size={13} /> Måltider (CSV)
+          </button>
+        </div>
       </div>
 
       <div className="kpi-row">
@@ -264,9 +359,10 @@ export function PlayerPage() {
             key={`${user.id}:${reloadKey}`}
             userId={user.id}
             playerName={user.display_name}
-            defaults={data.defaults}
-            own={data.own}
-            onSaved={() => setReloadKey((k) => k + 1)}
+            defaults={data.goals.defaults}
+            own={own}
+            team={team}
+            onSaved={reload}
           />
           <section className="card">
             <div className="card-header">
@@ -286,7 +382,7 @@ export function PlayerPage() {
         </div>
       </div>
 
-      {/* ---- The selected day in detail ---- */}
+      {/* ---- The selected day in detail (with corrections) ---- */}
       <section className="card">
         <div className="card-header">
           <div className="row" style={{ gap: 6 }}>
@@ -317,45 +413,8 @@ export function PlayerPage() {
             </div>
           </div>
 
-          <div style={{ gridColumn: 'span 2' }}>
-            {dayMeals === null ? (
-              <p className="muted">Laster måltider…</p>
-            ) : dayMeals.length === 0 ? (
-              <p className="muted">Ingen måltider registrert denne dagen.</p>
-            ) : (
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Tid</th>
-                      <th>Matvare</th>
-                      <th className="num">Mengde</th>
-                      <th className="num">kcal</th>
-                      <th className="num">Protein</th>
-                      <th className="num">Karbo</th>
-                      <th className="num">Fett</th>
-                      <th>Kilde</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {dayMeals.flatMap((meal) =>
-                      meal.meal_items.map((item, i) => (
-                        <tr key={item.id}>
-                          <td className="faint">{i === 0 ? formatTime(meal.eaten_at) : ''}</td>
-                          <td>{item.food_name}</td>
-                          <td className="num">{formatNumber(item.amount_g)} g</td>
-                          <td className="num">{formatNumber(item.nutrition.energy_kcal)}</td>
-                          <td className="num">{formatNumber(item.nutrition.protein_g, 1)}</td>
-                          <td className="num">{formatNumber(item.nutrition.carbs_g, 1)}</td>
-                          <td className="num">{formatNumber(item.nutrition.fat_g, 1)}</td>
-                          <td className="faint small">{item.detected_label ? (meal.recognizer ?? 'gjenkjent') : 'manuelt'}</td>
-                        </tr>
-                      )),
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
+          <div style={{ gridColumn: 'span 2', minWidth: 0 }}>
+            {dayMeals === null ? <p className="muted">Laster måltider…</p> : <DayMealsTable meals={dayMeals} onChanged={reload} />}
           </div>
         </div>
       </section>
@@ -394,6 +453,49 @@ export function PlayerPage() {
               ))}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      {/* ---- Recent changes about this player ---- */}
+      <section className="card flush">
+        <div className="row spread" style={{ padding: '16px 20px 4px' }}>
+          <h2>Endringer</h2>
+          <Link to="/log" className="small">
+            Hele endringsloggen
+          </Link>
+        </div>
+        <ChangeList entries={data.changes} names={names} />
+      </section>
+
+      {/* ---- GDPR: access + erasure ---- */}
+      <section className="card stack" style={{ borderColor: 'rgba(248, 113, 113, 0.35)' }}>
+        <h2>Personvern</h2>
+        <div className="row spread">
+          <div>
+            <strong className="small">Last ned alle data</strong>
+            <p className="faint small" style={{ margin: '2px 0 0' }}>
+              Alt vi lagrer om {user.display_name}, som én fil (innsynsrett). Bilder lagres aldri.
+            </p>
+          </div>
+          <button className="small" disabled={exporting} onClick={() => void runExport('all')}>
+            <FileJson size={13} /> Last ned (JSON)
+          </button>
+        </div>
+        <div className="row spread" style={{ borderTop: '1px solid var(--raised)', paddingTop: 12 }}>
+          <div>
+            <strong className="small">Slett permanent</strong>
+            <p className="faint small" style={{ margin: '2px 0 0' }}>
+              Sletter kontoen og alle data for godt (retten til sletting). Kan ikke angres.
+            </p>
+          </div>
+          {/* You can't delete your own account (the server refuses too). */}
+          <button
+            className="small danger"
+            disabled={user.id === me?.id}
+            title={user.id === me?.id ? 'Du kan ikke slette din egen konto' : undefined}
+            onClick={() => void deletePermanently()}>
+            <Trash2 size={13} /> Slett permanent
+          </button>
         </div>
       </section>
     </div>

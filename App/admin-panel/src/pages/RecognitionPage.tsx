@@ -12,6 +12,7 @@
 import { Link2, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import { CorrectionsCard } from '../components/CorrectionsCard';
 import { LinkFoodDialog } from '../components/LinkFoodDialog';
 import { PageHeader, StatTile } from '../components/ui';
 import { useFeedback } from '../feedback/feedback-context';
@@ -210,6 +211,8 @@ export function RecognitionPage() {
               </div>
             )}
           </section>
+
+          <CorrectionsCard aliases={aliases} onLinked={() => setAliasesKey((k) => k + 1)} />
 
           <section className="card flush">
             <div style={{ padding: '16px 20px 4px' }}>

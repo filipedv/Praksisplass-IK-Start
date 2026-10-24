@@ -2,7 +2,9 @@
 //
 //   /                → Oversikt (start page: key numbers, follow-up, everyone today)
 //   /users           → Brukere (accounts, roles, active/inactive)
-//   /users/:id       → one player: goals, charts, days and meals
+//   /users/:id       → one player: goals, charts, days, meals (+ corrections), exports
+//   /teams           → Lag (teams and team goals)
+//   /log             → Endringslogg (who changed what)
 //   /foods           → Matvarer (search + custom foods editor)
 //   /settings        → Klubbinnstillinger
 //   /recognition     → Gjenkjenning (how well recognizer labels match)
@@ -17,11 +19,13 @@ import { AuthProvider } from './auth/AuthProvider';
 import { Layout } from './components/Layout';
 import { FeedbackProvider } from './feedback/FeedbackProvider';
 import { ClubSettingsPage } from './pages/ClubSettingsPage';
+import { AuditPage } from './pages/AuditPage';
 import { FoodsPage } from './pages/FoodsPage';
 import { LoginPage } from './pages/LoginPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { PlayerPage } from './pages/PlayerPage';
 import { RecognitionPage } from './pages/RecognitionPage';
+import { TeamsPage } from './pages/TeamsPage';
 import { UsersPage } from './pages/UsersPage';
 
 export default function App() {
@@ -62,6 +66,8 @@ function Gate() {
         <Route index element={<OverviewPage />} />
         <Route path="users" element={<UsersPage />} />
         <Route path="users/:id" element={<PlayerPage />} />
+        <Route path="teams" element={<TeamsPage />} />
+        <Route path="log" element={<AuditPage />} />
         <Route path="foods" element={<FoodsPage />} />
         <Route path="settings" element={<ClubSettingsPage />} />
         <Route path="recognition" element={<RecognitionPage />} />

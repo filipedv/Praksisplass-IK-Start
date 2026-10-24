@@ -15,9 +15,13 @@ beginner-friendly code over clever code. Explain decisions when you make them.
   routing for the vision API call. Don't build features that assume real minors.
 - Built so far: the **player app** (camera → recognize → confirm/edit → save,
   Dagsoversikt with date navigation + calendar, water tracking, meal detail,
-  Profil, Personvernnotater) and the **admin panel** (Oversikt dashboard with
-  "Trenger oppfølging", users/roles/accounts, per-player page with editable
-  goals + charts, foods editor, club settings, recognition coverage).
+  Profil, Personvernnotater) and the **admin panel**:
+  - Oversikt: day picker, follow-up and data-quality flags, weekly trend, system status
+  - users, roles, accounts and teams
+  - the player page: goals, charts, meal corrections, exports, GDPR access/erasure
+  - foods and label links, "Hva spillerne valgte"
+  - the change log, club settings, ⌘K search
+  - a phone layout
 - Recognition runs on the **mock** by default. The FatSecret key currently lacks
   the `image-recognition` OAuth scope (it grants `basic premier barcode`), and
   FatSecret image recognition is a **14-day trial** — don't start it until we're
@@ -150,6 +154,25 @@ How to run everything: see `README.md`.
   **Norwegian local day** (meals, kcal, macros, water);
   `last_activity()` = last meal/water timestamp per profile.
 - `recognition_events` — labels / unmatched labels per photo.
+- `teams` — A-lag, G19 …, each with optional team goals (nullable = club
+  default). `profiles.team_id` (on delete set null); only admins may change it
+  (trigger `protect_profile_team`). **Effective goals = own → team → club**:
+  `effective_goals(user)` in SQL (the app's water goal uses it). The admin
+  panel mirrors it with `effectiveGoals()` + `goalSource()`. `goals_for()` is
+  the older two-layer version, kept so `main` keeps working; don't use it in
+  new code.
+- `audit_log` — the change log, filled ONLY by the database (generic trigger
+  `audit_row_change()` on profiles, player_goals, teams, food_aliases, foods,
+  club_settings, meals, meal_items) and by the `admin-users` function for
+  login accounts. There is no insert policy, so no app can write or fake
+  entries; only admins can read it. It logs changes by a logged-in user only,
+  and for meals only when someone else (an admin) edits a person's meal.
+  Players' own logging is not logged.
+- `update_meal_item_amount(item, grams)` rescales the saved nutrition
+  snapshot proportionally. `delete_meal_item(item)` also deletes the meal if
+  it's left empty. Both are security invoker (RLS decides who may).
+- `club_settings.foods_seeded_at` (set by the seed script) and
+  `fatsecret_trial_started_on` (set by an admin) feed Systemstatus.
 - `food_aliases` — the link list: `label` (unique, lower-cased and trimmed by a
   trigger; a plain label or a storable id like `fatsecret:123`) → `food_id`
   (cascade on food delete). Any signed-in user may read (the app needs it);
@@ -193,7 +216,13 @@ How to run everything: see `README.md`.
     request to the Edge Function". Node-based tests don't enforce CORS, so test
     the preflight with `curl -X OPTIONS … -H "Access-Control-Request-Headers: …,x-region"`.
   - Never log request bodies.
-  - Hard-deleting accounts is deliberately not offered (soft delete via `is_active`).
+  - `delete` = **permanent** erasure (GDPR). It refuses the caller's own
+    account. It first deletes change-log entries *about* the person (they can
+    hold their data), then deletes the auth user (everything cascades), then
+    logs a bare "account deleted" entry. The UI requires typing the name.
+    Deactivating (`is_active`) is still the normal choice.
+  - Every create/update/delete writes a change-log entry via `logAccount()`.
+    Never log a password, only `['…', 'endret']`.
 - When changing SQL, test RLS before pushing. We've done this with PGlite
   (Postgres in WASM) plus a stubbed `auth` schema (`auth.users`,
   `auth.uid()` reading `request.jwt.claim.sub`), running queries under
@@ -244,6 +273,15 @@ How to run everything: see `README.md`.
   - series colours `--series-kcal` (orange) and `--series-water` (blue) were
     validated against the card surface with the skill's palette checker
 - Read the clock once per page (`useState(() => new Date())`), never in render.
+- Filters/sort/period are remembered per browser with `usePersistentState`
+  (`src/lib/persist.ts`, localStorage, try/catch). Never store personal data there.
+- Exports are generated in the browser (`src/lib/download.ts`): CSV with `;`
+  and decimal commas plus a BOM, for Norwegian Excel. The GDPR "all data"
+  export is JSON (`src/lib/player-export.ts`).
+- Data-quality flags: a single item > 1000 g (`IMPLAUSIBLE_ITEM_G`) or a day
+  > 7000 kcal. Shown in "Trenger oppfølging" and highlighted in the meal table.
+- ⌘K / Ctrl+K quick search (`CommandPalette`): people, teams, pages, foods.
+  On screens under 900 px the sidebar becomes a slide-in menu.
 - Visual check: a temporary `@example.invalid` admin made with the secret key,
   Playwright (headless Chromium) screenshots of every page, account deleted after.
 
@@ -278,4 +316,6 @@ How to run everything: see `README.md`.
    (follow-up list, per-player tracking and goals, weight/height graphs,
    allergy/critical info, emergency contacts, private notes).
 6. **Guardian role**: height registration, emergency-contact numbers (feeding the coach view).
-7. Admin: editing other users' meals, audit logging (who changed what) if needed.
+7. Admin: change-log retention (how long to keep entries) before real players
+   join; adding a food to a player's meal from the admin panel (only
+   correcting/deleting exists).
