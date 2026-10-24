@@ -49,11 +49,11 @@ export async function deleteWater(id: string) {
 }
 
 /**
- * My daily water goal: my own goal if an admin set one for me, otherwise the
- * club default. The database works this out (goals_for() in the migrations).
+ * My daily water goal: my own goal if an admin set one for me, else my team's
+ * goal, else the club default. The database works this out (effective_goals()).
  */
 export async function fetchWaterGoal(): Promise<number> {
-  const { data, error } = await supabase.rpc('goals_for').maybeSingle<{ goal_water_ml: number }>();
+  const { data, error } = await supabase.rpc('effective_goals').maybeSingle<{ goal_water_ml: number }>();
   if (error) throw error;
   return setCached('waterGoal', data?.goal_water_ml ?? 2500);
 }

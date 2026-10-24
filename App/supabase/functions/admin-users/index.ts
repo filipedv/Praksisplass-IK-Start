@@ -1,6 +1,7 @@
 // admin-users — Edge Function that lets ADMINS manage login accounts from the
-// admin panel: list accounts (with email), create an account, and change an
-// account's email or password.
+// admin panel: list accounts (with email), create an account, change an
+// account's email or password, and permanently delete an account (GDPR
+// "right to erasure"). Every change is written to the change log (audit_log).
 //
 // WHY A SERVER FUNCTION? Creating logins and changing emails/passwords needs
 // the Supabase SECRET key, which must never be in the admin panel (anyone who
@@ -65,6 +66,24 @@ export default {
 
     const body = await req.json().catch(() => null);
     const admin = ctx.supabaseAdmin.auth.admin;
+    const callerId = ctx.userClaims?.id ?? null;
+
+    // Write one entry to the change log. Apps can't write there (no insert
+    // policy) — only this function, with the secret key, and the database's
+    // own triggers. Never put a password in `changes`.
+    async function logAccount(action: 'insert' | 'update' | 'delete', userId: string, changes: Record<string, unknown>) {
+      const { data: me } = await ctx.supabaseAdmin.from('profiles').select('display_name').eq('id', callerId).maybeSingle();
+      const { error } = await ctx.supabaseAdmin.from('audit_log').insert({
+        actor_id: callerId,
+        actor_name: me?.display_name ?? null,
+        action,
+        table_name: 'accounts',
+        record_id: userId,
+        subject_user_id: userId,
+        changes,
+      });
+      if (error) console.error('[admin-users] could not write change log:', error.message);
+    }
 
     switch (body?.action) {
       // ------------------------------------------------------------------
@@ -108,6 +127,11 @@ export default {
           const { error: roleError } = await ctx.supabaseAdmin.from('profiles').update({ role }).eq('id', data.user.id);
           if (roleError) return reply({ error: `Kontoen ble opprettet, men rollen kunne ikke settes: ${roleError.message}` }, 500);
         }
+        await logAccount('insert', data.user.id, {
+          email: [null, data.user.email],
+          display_name: [null, display_name.trim()],
+          role: [null, role],
+        });
         return reply({ id: data.user.id });
       }
 
@@ -132,8 +156,33 @@ export default {
         }
         if (Object.keys(changes).length === 0) return reply({ error: 'Ingen endringer.' }, 400);
 
+        const { data: before } = await admin.getUserById(user_id);
         const { error } = await admin.updateUserById(user_id, changes);
         if (error) return reply({ error: authErrorMessage(error.message) }, 400);
+        await logAccount('update', user_id, {
+          ...(changes.email ? { email: [before?.user?.email ?? null, changes.email] } : {}),
+          ...(changes.password ? { password: ['…', 'endret'] } : {}), // never the password itself
+        });
+        return reply({ ok: true });
+      }
+
+      // ------------------------------------------------------------------
+      // delete: PERMANENTLY remove an account and all of its data (GDPR
+      // right to erasure). The database cascades from auth.users to the
+      // profile, meals, items, water, goals and recognition events.
+      // ------------------------------------------------------------------
+      case 'delete': {
+        const { user_id } = body;
+        if (typeof user_id !== 'string') return reply({ error: 'user_id mangler.' }, 400);
+        if (user_id === callerId) return reply({ error: 'Du kan ikke slette din egen konto.' }, 400);
+
+        // Log entries ABOUT this person can contain their data (names, meal
+        // changes), so they go too. Only a bare "an account was deleted"
+        // record (no name, no email) is kept, for accountability.
+        await ctx.supabaseAdmin.from('audit_log').delete().eq('subject_user_id', user_id);
+        const { error } = await admin.deleteUser(user_id);
+        if (error) return reply({ error: error.message }, 400);
+        await logAccount('delete', user_id, {});
         return reply({ ok: true });
       }
 

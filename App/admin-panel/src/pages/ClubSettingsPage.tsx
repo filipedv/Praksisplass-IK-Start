@@ -23,9 +23,12 @@ const NUMBER_FIELDS = [
 
 type NumberKey = (typeof NUMBER_FIELDS)[number]['key'];
 
+const SETTINGS_COLUMNS =
+  'club_name, default_goal_kcal, default_goal_protein_g, default_goal_carbs_g, default_goal_fat_g, default_goal_water_ml, fatsecret_trial_started_on, updated_at';
+
 export function ClubSettingsPage() {
   const [settings, setSettings] = useState<ClubSettings | null>(null);
-  const [form, setForm] = useState<Record<'club_name' | NumberKey, string> | null>(null);
+  const [form, setForm] = useState<Record<'club_name' | 'trial_start' | NumberKey, string> | null>(null);
   const { toast } = useFeedback();
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -33,7 +36,7 @@ export function ClubSettingsPage() {
   useEffect(() => {
     void supabase
       .from('club_settings')
-      .select('club_name, default_goal_kcal, default_goal_protein_g, default_goal_carbs_g, default_goal_fat_g, default_goal_water_ml, updated_at')
+      .select(SETTINGS_COLUMNS)
       .eq('id', 1)
       .single()
       .then(({ data, error }) => {
@@ -46,6 +49,7 @@ export function ClubSettingsPage() {
     setSettings(data);
     setForm({
       club_name: data.club_name,
+      trial_start: data.fatsecret_trial_started_on ?? '',
       default_goal_kcal: String(data.default_goal_kcal),
       default_goal_protein_g: String(data.default_goal_protein_g),
       default_goal_carbs_g: String(data.default_goal_carbs_g),
@@ -59,7 +63,10 @@ export function ClubSettingsPage() {
     if (!form) return;
 
     if (!form.club_name.trim()) return toast('Klubbnavn kan ikke være tomt.', 'error');
-    const changes: Record<string, string | number> = { club_name: form.club_name.trim() };
+    const changes: Record<string, string | number | null> = {
+      club_name: form.club_name.trim(),
+      fatsecret_trial_started_on: form.trial_start || null, // empty = not started
+    };
     for (const { key, label } of NUMBER_FIELDS) {
       const value = Number(form[key]);
       // The database also checks these (CHECK constraints), this is just a friendlier message.
@@ -74,7 +81,7 @@ export function ClubSettingsPage() {
       .from('club_settings')
       .update(changes)
       .eq('id', 1)
-      .select('club_name, default_goal_kcal, default_goal_protein_g, default_goal_carbs_g, default_goal_fat_g, default_goal_water_ml, updated_at')
+      .select(SETTINGS_COLUMNS)
       .single();
     setBusy(false);
     if (error || !data) return toast(`Kunne ikke lagre: ${error?.message ?? 'ingen tilgang'}`, 'error');
@@ -108,6 +115,15 @@ export function ClubSettingsPage() {
           </label>
         ))}
       </div>
+
+      <h2>FatSecret-prøveperiode</h2>
+      <p className="muted" style={{ margin: 0 }}>
+        Bildegjenkjenning fra FatSecret er gratis i 14 dager. Sett datoen den starter, så teller Systemstatus på Oversikt ned.
+      </p>
+      <label style={{ maxWidth: 260 }}>
+        Startdato
+        <input type="date" value={form.trial_start} onChange={(e) => setForm({ ...form, trial_start: e.target.value })} />
+      </label>
 
       <div className="row">
         <button type="submit" className="primary" disabled={busy}>

@@ -48,6 +48,13 @@ async function main() {
     console.log(`  ${Math.min(i + BATCH, rows.length)} / ${rows.length}`);
   }
 
+  // Record when the foods were loaded, for the admin panel's system status.
+  const { error: stampError } = await supabase
+    .from('club_settings')
+    .update({ foods_seeded_at: new Date().toISOString() })
+    .eq('id', 1);
+  if (stampError) console.warn('Could not record the seed time:', stampError.message);
+
   console.log('Done. Data source: Matvaretabellen (Mattilsynet).');
 }
 

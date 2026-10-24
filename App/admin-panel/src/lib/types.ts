@@ -16,6 +16,35 @@ export type Profile = {
   role: Role;
   is_active: boolean;
   created_at: string;
+  team_id: string | null;
+};
+
+/** The columns every profiles query selects (keep in sync with Profile). */
+export const PROFILE_COLUMNS = 'id, display_name, role, is_active, created_at, team_id';
+
+/** A team (A-lag, G19 …). Goal fields: null = use the club default. */
+export type Team = {
+  id: string;
+  name: string;
+  sort_order: number;
+  goal_kcal: number | null;
+  goal_protein_g: number | null;
+  goal_carbs_g: number | null;
+  goal_fat_g: number | null;
+  goal_water_ml: number | null;
+};
+
+/** One row of the change log (audit_log). */
+export type AuditEntry = {
+  id: number;
+  at: string;
+  actor_id: string | null;
+  actor_name: string | null;
+  action: 'insert' | 'update' | 'delete';
+  table_name: string;
+  record_id: string | null;
+  subject_user_id: string | null;
+  changes: Record<string, [unknown, unknown]>;
 };
 
 export type NutrientKey =
@@ -63,6 +92,8 @@ export type Meal = { id: string; eaten_at: string; recognizer: string | null; me
 export type WaterLog = { id: string; amount_ml: number; logged_at: string };
 
 export type ClubSettings = {
+  foods_seeded_at?: string | null;
+  fatsecret_trial_started_on?: string | null;
   club_name: string;
   default_goal_kcal: number;
   default_goal_protein_g: number;

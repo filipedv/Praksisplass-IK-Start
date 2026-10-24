@@ -11,7 +11,7 @@
 
 import { ChevronRight, Pencil, Search, UserPlus } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 
 import { useAuth } from '../auth/auth-context';
 import { EditUserForm } from '../components/EditUserForm';
@@ -20,16 +20,20 @@ import { Avatar, PageHeader, Segmented } from '../components/ui';
 import { useFeedback } from '../feedback/feedback-context';
 import { listAccounts, type AccountInfo } from '../lib/admin-users';
 import { formatDateTime } from '../lib/format';
+import { usePersistentState } from '../lib/persist';
 import { supabase } from '../lib/supabase';
-import { ROLE_LABELS, type Profile, type Role } from '../lib/types';
+import { listTeams, setUserTeam } from '../lib/teams-api';
+import { ROLE_LABELS, type Profile, type Role, type Team, PROFILE_COLUMNS } from '../lib/types';
 
 /** All profiles (RLS lets admins see everyone's) + emails/last login from Auth. */
 async function fetchUsers() {
-  const [profiles, accounts] = await Promise.all([
-    supabase.from('profiles').select('id, display_name, role, is_active, created_at').order('display_name'),
+  const [profiles, accounts, teams] = await Promise.all([
+    supabase.from('profiles').select(PROFILE_COLUMNS).order('display_name'),
     listAccounts(),
+    listTeams(),
   ]);
   return {
+    teams,
     users: (profiles.data ?? []) as Profile[],
     accounts: new Map((accounts.data ?? []).map((a) => [a.id, a])),
     error: profiles.error?.message ?? accounts.error,
@@ -43,16 +47,21 @@ export function UsersPage() {
   const { toast, confirm } = useFeedback();
   const [users, setUsers] = useState<Profile[] | null>(null);
   const [accounts, setAccounts] = useState<Map<string, AccountInfo>>(new Map());
+  const [teams, setTeams] = useState<Team[]>([]);
   const [savingId, setSavingId] = useState<string | null>(null);
   // Which form is open: none, "new user", or editing one user (by id).
   const [form, setForm] = useState<{ kind: 'none' } | { kind: 'new' } | { kind: 'edit'; userId: string }>({ kind: 'none' });
   // Bump this number to load the list again (e.g. after saving).
   const [reloadKey, setReloadKey] = useState(0);
 
-  // Search + filters
+  // Search + filters (filters are remembered between visits).
+  // A link like /users?team=<id> (from the Lag page) overrides the team filter.
+  const [searchParams] = useSearchParams();
   const [query, setQuery] = useState('');
-  const [roleFilter, setRoleFilter] = useState<Role | 'all'>('all');
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active');
+  const [roleFilter, setRoleFilter] = usePersistentState<Role | 'all'>('users-role', 'all');
+  const [statusFilter, setStatusFilter] = usePersistentState<StatusFilter>('users-status', 'active');
+  const [savedTeamFilter, setTeamFilter] = usePersistentState<string>('users-team', 'all'); // 'all' | 'none' | team id
+  const teamFilter = searchParams.get('team') ?? savedTeamFilter;
 
   useEffect(() => {
     let cancelled = false; // ignore the answer if we've left the page meanwhile
@@ -61,6 +70,7 @@ export function UsersPage() {
       if (result.error) toast(`Kunne ikke hente alt: ${result.error}`, 'error');
       setUsers(result.users);
       setAccounts(result.accounts);
+      setTeams(result.teams);
     });
     return () => {
       cancelled = true;
@@ -78,6 +88,20 @@ export function UsersPage() {
     if (error || !data?.length) toast(`Kunne ikke lagre: ${error?.message ?? 'ingen tilgang'}`, 'error');
     else toast(okText);
     setReloadKey((k) => k + 1);
+  }
+
+  async function changeTeam(user: Profile, teamId: string) {
+    setSavingId(user.id);
+    try {
+      await setUserTeam(user.id, teamId || null);
+      const name = teams.find((t) => t.id === teamId)?.name;
+      toast(name ? `${user.display_name} er nå på ${name}.` : `${user.display_name} er tatt ut av laget.`);
+    } catch (e) {
+      toast(`Kunne ikke bytte lag: ${(e as Error).message}`, 'error');
+    } finally {
+      setSavingId(null);
+      setReloadKey((k) => k + 1);
+    }
   }
 
   async function toggleActive(user: Profile) {
@@ -114,6 +138,8 @@ export function UsersPage() {
     if (roleFilter !== 'all' && u.role !== roleFilter) return false;
     if (statusFilter === 'active' && !u.is_active) return false;
     if (statusFilter === 'inactive' && u.is_active) return false;
+    if (teamFilter === 'none' && u.team_id) return false;
+    if (teamFilter !== 'all' && teamFilter !== 'none' && u.team_id !== teamFilter) return false;
     return true;
   });
   const inactiveCount = users.filter((u) => !u.is_active).length;
@@ -155,6 +181,15 @@ export function UsersPage() {
               </option>
             ))}
           </select>
+          <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} aria-label="Filtrer på lag">
+            <option value="all">Alle lag</option>
+            <option value="none">Uten lag</option>
+            {teams.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
           <Segmented
             label="Status"
             value={statusFilter}
@@ -174,6 +209,7 @@ export function UsersPage() {
                 <th>Navn</th>
                 <th>E-post</th>
                 <th>Rolle</th>
+                <th>Lag</th>
                 <th>Status</th>
                 <th>Sist innlogget</th>
                 <th></th>
@@ -216,6 +252,20 @@ export function UsersPage() {
                       </select>
                     </td>
                     <td>
+                      <select
+                        value={user.team_id ?? ''}
+                        disabled={busy}
+                        aria-label={`Lag for ${user.display_name}`}
+                        onChange={(e) => void changeTeam(user, e.target.value)}>
+                        <option value="">Uten lag</option>
+                        {teams.map((t) => (
+                          <option key={t.id} value={t.id}>
+                            {t.name}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
                       <span className={`pill ${user.is_active ? 'ok' : 'off'}`}>{user.is_active ? 'Aktiv' : 'Deaktivert'}</span>
                     </td>
                     <td className="muted small">{account?.last_sign_in_at ? formatDateTime(account.last_sign_in_at) : 'Aldri'}</td>
@@ -239,7 +289,7 @@ export function UsersPage() {
               })}
               {visible.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="muted" style={{ textAlign: 'center', padding: 32 }}>
+                  <td colSpan={7} className="muted" style={{ textAlign: 'center', padding: 32 }}>
                     Ingen brukere passer filteret.
                   </td>
                 </tr>

@@ -8,11 +8,12 @@
 // name is exactly the label (e.g. "chicken breast"). search_foods() ranks an
 // exact name match first, so the app will pick it from then on.
 
-import { useCallback, useEffect, useState } from 'react';
-
 import { Plus, Search } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router';
 
 import { FoodForm, type FoodDraft } from '../components/FoodForm';
+import { FoodLinks } from '../components/FoodLinks';
 import { PageHeader } from '../components/ui';
 import { useFeedback } from '../feedback/feedback-context';
 import { formatNumber } from '../lib/format';
@@ -30,8 +31,18 @@ type Panel =
   | { kind: 'edit'; food: Food } // a custom food
   | { kind: 'new'; draft: FoodDraft; copiedFrom?: string };
 
+/**
+ * /foods?q=<text> (used by ⌘K quick search) starts the search with that text.
+ * The `key` makes React start the page fresh whenever ?q= changes.
+ */
 export function FoodsPage() {
-  const [query, setQuery] = useState('');
+  const [searchParams] = useSearchParams();
+  const q = searchParams.get('q') ?? '';
+  return <FoodsPageContent key={q} initialQuery={q} />;
+}
+
+function FoodsPageContent({ initialQuery }: { initialQuery: string }) {
+  const [query, setQuery] = useState(initialQuery);
   const [foods, setFoods] = useState<Food[] | null>(null);
   const [panel, setPanel] = useState<Panel>({ kind: 'none' });
   const { toast, confirm } = useFeedback();
@@ -111,8 +122,9 @@ export function FoodsPage() {
         }
       />
       <p className="hint">
-        Tips: Hvis gjenkjenningen gir en etikett som ikke finnes (se «Gjenkjenning»), lag en egendefinert matvare med{' '}
-        <strong>engelsk navn lik etiketten</strong>, f.eks. «chicken breast». Appen velger den automatisk etter det.
+        Tips: Gir gjenkjenningen en etikett som ikke blir funnet, f.eks. «chicken breast»? <strong>Koble den</strong> til
+        riktig matvare — under «Gjenkjenning», eller i panelet til høyre når du har valgt matvaren. Lag bare en
+        egendefinert matvare hvis den faktisk mangler i Matvaretabellen.
       </p>
 
       <div className="split">
@@ -181,7 +193,8 @@ export function FoodsPage() {
           <p className="faint small" style={{ margin: 0 }}>Verdier per 100 g.</p>
         </div>
 
-        <aside className="card stack" style={{ position: 'sticky', top: 24 }}>
+        {/* Pinned while the list scrolls; scrolls by itself if taller than the window. */}
+        <aside className="card stack" style={{ position: 'sticky', top: 24, maxHeight: 'calc(100vh - 48px)', overflowY: 'auto' }}>
           {panel.kind === 'none' && <p className="muted">Velg en matvare i listen, eller lag en ny.</p>}
 
           {panel.kind === 'view' && (
@@ -191,6 +204,7 @@ export function FoodsPage() {
                 Fra Matvaretabellen — kan ikke endres her. Lag en kopi for å rette verdier eller navn.
               </p>
               <NutritionTable food={panel.food} />
+              <FoodLinks key={panel.food.id} foodId={panel.food.id} foodName={panel.food.name_nb} />
               <button
                 className="primary"
                 onClick={() =>
@@ -237,6 +251,7 @@ export function FoodsPage() {
                 onCancel={() => setPanel({ kind: 'none' })}
                 onDelete={() => void remove(panel.food)}
               />
+              <FoodLinks key={panel.food.id} foodId={panel.food.id} foodName={panel.food.name_nb} />
             </>
           )}
         </aside>

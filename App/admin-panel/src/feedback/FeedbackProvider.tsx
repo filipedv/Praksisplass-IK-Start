@@ -18,6 +18,7 @@ let nextId = 1;
 export function FeedbackProvider({ children }: PropsWithChildren) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const [pending, setPending] = useState<(ConfirmOptions & { resolve: (ok: boolean) => void }) | null>(null);
+  const [typed, setTyped] = useState(''); // for confirmations that require typing a name
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   function dismiss(id: number) {
@@ -31,6 +32,7 @@ export function FeedbackProvider({ children }: PropsWithChildren) {
   }
 
   function confirm(options: ConfirmOptions) {
+    setTyped('');
     return new Promise<boolean>((resolve) => setPending({ ...options, resolve }));
   }
 
@@ -68,9 +70,19 @@ export function FeedbackProvider({ children }: PropsWithChildren) {
           <>
             <h2>{pending.title}</h2>
             {pending.body && <p>{pending.body}</p>}
+            {pending.requireText && (
+              <label style={{ marginBottom: 16 }}>
+                Skriv «{pending.requireText}» for å bekrefte
+                <input value={typed} onChange={(e) => setTyped(e.target.value)} autoFocus autoComplete="off" />
+              </label>
+            )}
             <div className="row" style={{ justifyContent: 'flex-end', marginTop: pending.body ? 0 : 20 }}>
               <button onClick={() => answer(false)}>Avbryt</button>
-              <button className={pending.danger ? 'primary danger-fill' : 'primary'} onClick={() => answer(true)} autoFocus>
+              <button
+                className={pending.danger ? 'primary danger-fill' : 'primary'}
+                onClick={() => answer(true)}
+                disabled={!!pending.requireText && typed.trim() !== pending.requireText}
+                autoFocus={!pending.requireText}>
                 {pending.confirmLabel ?? 'OK'}
               </button>
             </div>

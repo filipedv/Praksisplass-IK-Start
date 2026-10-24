@@ -1,25 +1,36 @@
 // "Mål" card on the player page: shows the player's EFFECTIVE goals and lets
 // an admin adjust them ("Juster mål", as in the coach sketch).
 //
-// Each field is either the player's own value or empty = follow the club
-// default (shown as the placeholder). Saving writes to player_goals; the
-// database (RLS) only allows that for admins.
+// Each field is either the player's own value or empty = follow the team's
+// goal, or the club default if the team has none (shown as the placeholder).
+// Saving writes to player_goals; the database (RLS) only allows that for admins.
 
 import { SlidersHorizontal } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
 import { useFeedback } from '../feedback/feedback-context';
-import { GOAL_FIELDS, savePlayerGoals, type Goals, type PlayerGoalsRow } from '../lib/summary-api';
+import {
+  GOAL_FIELDS,
+  GOAL_SOURCE_LABELS,
+  goalSource,
+  savePlayerGoals,
+  type Goals,
+  type PlayerGoalsRow,
+} from '../lib/summary-api';
+import type { Team } from '../lib/types';
 
 type Props = {
   userId: string;
   playerName: string;
   defaults: Goals; // club defaults
   own: PlayerGoalsRow | undefined; // the player's own values (may be partly null)
+  team: Team | undefined; // the player's team (its goals may be partly null)
   onSaved: () => void;
 };
 
-export function GoalsCard({ userId, playerName, defaults, own, onSaved }: Props) {
+export function GoalsCard({ userId, playerName, defaults, own, team, onSaved }: Props) {
+  // What an empty field falls back to: the team's goal, else the club's.
+  const fallback = (key: keyof Goals) => team?.[key] ?? defaults[key];
   const { toast, confirm } = useFeedback();
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -60,15 +71,15 @@ export function GoalsCard({ userId, playerName, defaults, own, onSaved }: Props)
 
   async function resetToClub() {
     const ok = await confirm({
-      title: 'Bruke klubbens standardmål?',
-      body: `Alle egne mål for ${playerName} fjernes, og spilleren følger klubbens standard fra Klubbinnstillinger.`,
-      confirmLabel: 'Bruk klubbstandard',
+      title: team ? `Bruke lagets mål (${team.name})?` : 'Bruke klubbens standardmål?',
+      body: `Alle egne mål for ${playerName} fjernes. Spilleren følger da ${team ? `målene til ${team.name} (og klubbens standard der laget ikke har mål)` : 'klubbens standard fra Klubbinnstillinger'}.`,
+      confirmLabel: team ? 'Bruk lagets mål' : 'Bruk klubbstandard',
     });
     if (!ok) return;
     setBusy(true);
     try {
       await savePlayerGoals(userId, { goal_kcal: null, goal_protein_g: null, goal_carbs_g: null, goal_fat_g: null, goal_water_ml: null });
-      toast(`${playerName} følger nå klubbens standardmål.`);
+      toast(`${playerName} følger nå ${team ? `målene til ${team.name}` : 'klubbens standardmål'}.`);
       setEditing(false);
       onSaved();
     } catch (err) {
@@ -94,28 +105,28 @@ export function GoalsCard({ userId, playerName, defaults, own, onSaved }: Props)
       {!editing ? (
         <div className="stack" style={{ gap: 10 }}>
           {GOAL_FIELDS.map(({ key, label, unit }) => {
-            const isOwn = own?.[key] != null;
+            const source = goalSource(key, own, team);
             return (
               <div key={key} className="row spread">
                 <span className="muted">{label}</span>
                 <span className="row" style={{ gap: 8 }}>
                   <strong className="num">
-                    {(own?.[key] ?? defaults[key]).toLocaleString('nb-NO')} {unit}
+                    {(own?.[key] ?? fallback(key)).toLocaleString('nb-NO')} {unit}
                   </strong>
-                  <span className={`pill ${isOwn ? 'info' : ''}`}>{isOwn ? 'Eget' : 'Klubb'}</span>
+                  <span className={`pill ${source === 'own' ? 'info' : source === 'team' ? 'ok' : ''}`}>{GOAL_SOURCE_LABELS[source]}</span>
                 </span>
               </div>
             );
           })}
           <p className="faint small" style={{ margin: '6px 0 0' }}>
-            {hasOwn ? '«Eget» = satt for denne spilleren. ' : ''}«Klubb» = standard fra Klubbinnstillinger. Plassholderverdier
-            — ikke ernæringsråd.
+            «Eget» = satt for denne spilleren · «Lag» = {team ? `målet til ${team.name}` : 'lagets mål'} · «Klubb» = standard
+            fra Klubbinnstillinger. Plassholderverdier — ikke ernæringsråd.
           </p>
         </div>
       ) : (
         <form className="stack" onSubmit={handleSubmit}>
           <p className="faint small" style={{ margin: 0 }}>
-            La et felt stå tomt for å bruke klubbens standard (vist i feltet).
+            La et felt stå tomt for å bruke {team ? `målet til ${team.name}` : 'klubbens standard'} (vist i feltet).
           </p>
           <div className="grid-2">
             {GOAL_FIELDS.map(({ key, label, unit }) => (
@@ -124,7 +135,7 @@ export function GoalsCard({ userId, playerName, defaults, own, onSaved }: Props)
                 <input
                   inputMode="numeric"
                   value={form[key]}
-                  placeholder={String(defaults[key])}
+                  placeholder={String(fallback(key))}
                   onChange={(e) => setForm({ ...form, [key]: e.target.value })}
                 />
               </label>
@@ -139,7 +150,7 @@ export function GoalsCard({ userId, playerName, defaults, own, onSaved }: Props)
             </button>
             {hasOwn && (
               <button type="button" className="ghost" onClick={resetToClub} disabled={busy} style={{ marginLeft: 'auto' }}>
-                Bruk klubbstandard
+                {team ? 'Bruk lagets mål' : 'Bruk klubbstandard'}
               </button>
             )}
           </div>
