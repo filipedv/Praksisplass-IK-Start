@@ -3,7 +3,7 @@
 //
 //   gray   = Ikke logget         (no meals that day — a follow-up, not a nutrition problem)
 //   red    = Langt fra målet     (logged, but far from kcal + water goals)
-//   orange = Nesten nådde målet
+//   orange = Nesten i mål
 //   green  = Nådde målet
 //
 // Score = average of (kcal / kcal goal) and (water / water goal), each capped
@@ -21,7 +21,7 @@ export const STATUS_ORDER: Status[] = ['gray', 'red', 'orange', 'green'];
 export const STATUS_LABELS: Record<Status, string> = {
   get gray() { return t('Ikke logget', 'Not logged'); },
   get red() { return t('Langt fra målet', 'Far from goal'); },
-  get orange() { return t('Nesten nådde målet', 'Almost reached goal'); },
+  get orange() { return t('Nesten i mål', 'Almost there'); },
   get green() { return t('Nådde målet', 'Reached goal'); },
 };
 

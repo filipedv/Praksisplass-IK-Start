@@ -209,7 +209,7 @@ export default function TodayScreen() {
         </Pressable>
 
         <View>
-          <SectionTitle>{t('Dagens oversikt', "Today's overview")}</SectionTitle>
+          <SectionTitle>{t('Oversikt', 'Overview')}</SectionTitle>
           <Card style={styles.statsCard}>
             <NutritionTotals nutrition={dayTotals} goals={macroGoals} />
           </Card>

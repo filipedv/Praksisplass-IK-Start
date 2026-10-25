@@ -34,7 +34,7 @@ export function MenuRow({ label, onPress, divider }: { label: string; onPress: (
   );
 }
 
-/** Bold section heading above a card ("Dagens oversikt", "Måltider"). */
+/** Bold section heading above a card ("Oversikt", "Måltider"). */
 export function SectionTitle({ children }: PropsWithChildren) {
   return <Text style={styles.sectionTitle}>{children}</Text>;
 }

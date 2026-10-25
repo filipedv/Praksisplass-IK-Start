@@ -31,7 +31,7 @@ export const colors = {
     slate: { bg: '#1E293B', text: '#CBD5E1' }, // slate-800 / slate-300
   },
 
-  // The coloured dots under each number in "Dagens oversikt".
+  // The coloured dots under each number in Dagsoversikt's "Oversikt" card.
   macro: {
     kcal: '#10B981', // emerald-500
     protein: '#3B82F6', // blue-500

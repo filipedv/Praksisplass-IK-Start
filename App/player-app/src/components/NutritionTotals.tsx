@@ -1,8 +1,8 @@
 // The sketch's `NutritionStatGrid`: four big numbers (kcal, protein, carbs,
-// fat), each with a label and a coloured dot. Used in "Dagens oversikt" and
+// fat), each with a label and a coloured dot. Used in Dagsoversikt ("Oversikt") and
 // in the meal detail's "Næringsoversikt".
 //
-// With `goals` (Dagens oversikt only) each number also shows "av <goal>" and
+// With `goals` (Dagsoversikt only) each number also shows "av <goal>" and
 // a thin progress bar. The bar stops at full; going over the goal is shown
 // by the number, not by a red warning — this is a log, not a score.
 

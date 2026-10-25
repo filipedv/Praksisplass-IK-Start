@@ -197,7 +197,9 @@ export function FixturesPage() {
                     ) : (
                       <details>
                         <summary className="small muted">
-                          {t(`${f.reminders.length} påminnelser`, `${f.reminders.length} reminders`)}
+                          {f.reminders.length === 1
+                            ? t('1 påminnelse', '1 reminder')
+                            : t(`${f.reminders.length} påminnelser`, `${f.reminders.length} reminders`)}
                           {tab === 'upcoming' && upcoming.length < f.reminders.length
                             ? t(` (${f.reminders.length - upcoming.length} allerede sendt)`, ` (${f.reminders.length - upcoming.length} already sent)`)
                             : ''}

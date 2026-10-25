@@ -53,6 +53,19 @@ const newKey = () => `item-${++keyCounter}`;
  */
 type PrefillItem = { f: string; g: number };
 
+/** ?prefill → items; anything malformed (e.g. a mistyped link) gives an empty list. */
+function parsePrefill(prefill: string | undefined): PrefillItem[] {
+  if (!prefill) return [];
+  try {
+    const parsed: unknown = JSON.parse(prefill);
+    return Array.isArray(parsed)
+      ? parsed.filter((p): p is PrefillItem => typeof p?.f === 'string' && typeof p?.g === 'number' && p.g > 0 && p.g <= 5000)
+      : [];
+  } catch {
+    return [];
+  }
+}
+
 /** Default time for a meal logged for another day: 12:00 that day. */
 function noonOf(dateIso: string): Date {
   const d = parseISODate(dateIso);
@@ -75,7 +88,7 @@ export default function KameraScreen() {
   useEffect(() => {
     if (!prefill && !date) return;
     let cancelled = false;
-    const wanted: PrefillItem[] = prefill ? (JSON.parse(prefill) as PrefillItem[]) : [];
+    const wanted = parsePrefill(prefill);
     fetchFoodsByIds(wanted.map((w) => w.f))
       .then((foods) => {
         if (cancelled) return;

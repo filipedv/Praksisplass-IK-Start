@@ -45,7 +45,7 @@ export default function LoginScreen() {
           <Ionicons name="restaurant-outline" size={24} color="#fff" />
         </View>
         <Text style={styles.title}>{t('Logg inn', 'Sign in')}</Text>
-        <Text style={styles.subtitle}>{t('Fyll inn relevant innloggingsdata for å fortsette', 'Enter your login details to continue')}</Text>
+        <Text style={styles.subtitle}>{t('Logg inn med e-post og passord', 'Sign in with your email and password')}</Text>
 
         <TextInput
           style={styles.input}

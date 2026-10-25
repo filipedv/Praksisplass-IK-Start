@@ -121,12 +121,22 @@ export function reminderText(r: FixtureReminder, f: Fixture, lang: Language): st
 
 // ---- Scheduling on the phone ----
 
+// Syncs run one after another, never at the same time (app start and "back
+// to the front" can happen together, and both remove + re-add reminders).
+let queue: Promise<void> = Promise.resolve();
+
 /**
  * Make the phone's scheduled fixture reminders match the database: remove
  * ours, then add every future reminder of the next two weeks. Safe to call
  * often. Does nothing (except clearing) if turned off or not allowed.
  */
-export async function syncFixtureReminders(userId: string) {
+export function syncFixtureReminders(userId: string): Promise<void> {
+  const run = queue.then(() => syncNow(userId));
+  queue = run.catch(() => {}); // a failed sync mustn't block the next one
+  return run;
+}
+
+async function syncNow(userId: string) {
   await cancelScheduled(ID_PREFIX);
   if (!fixtureRemindersEnabled()) return;
   const permission = await Notifications.getPermissionsAsync();
