@@ -12,6 +12,7 @@ import { useEffect, useState } from 'react';
 import { useFeedback } from '../feedback/feedback-context';
 import { linkLabel, normalizeLabel, type FoodAlias } from '../lib/aliases-api';
 import { supabase } from '../lib/supabase';
+import { t } from '../lib/i18n';
 
 /** Same threshold as the player app's MATCH_THRESHOLD. */
 const MATCH_THRESHOLD = 0.7;
@@ -66,7 +67,7 @@ export function CorrectionsCard({ aliases, onLinked }: { aliases: FoodAlias[]; o
     let cancelled = false;
     fetchCorrections()
       .then((r) => !cancelled && setRows(r))
-      .catch((e) => !cancelled && toast(`Kunne ikke hente spillernes valg: ${e.message}`, 'error'));
+      .catch((e) => !cancelled && toast(`${t('Kunne ikke hente spillernes valg', "Couldn't load the players' choices")}: ${e.message}`, 'error'));
     return () => {
       cancelled = true;
     };
@@ -78,10 +79,10 @@ export function CorrectionsCard({ aliases, onLinked }: { aliases: FoodAlias[]; o
     setBusy(label);
     try {
       await linkLabel(label, choice.foodId);
-      toast(`«${label}» er koblet til ${choice.foodName}.`);
+      toast(t(`«${label}» er koblet til ${choice.foodName}.`, `“${label}” is now linked to ${choice.foodName}.`));
       onLinked();
     } catch (e) {
-      toast(`Kunne ikke lagre koblingen: ${(e as Error).message}`, 'error');
+      toast(`${t('Kunne ikke lagre koblingen', "Couldn't save the link")}: ${(e as Error).message}`, 'error');
     } finally {
       setBusy(null);
     }
@@ -92,28 +93,30 @@ export function CorrectionsCard({ aliases, onLinked }: { aliases: FoodAlias[]; o
   return (
     <section className="card flush">
       <div style={{ padding: '16px 20px 4px' }}>
-        <h2>Hva spillerne valgte</h2>
+        <h2>{t('Hva spillerne valgte', 'What the players chose')}</h2>
         <p className="faint small" style={{ margin: '4px 0 0' }}>
-          For hver etikett: hva appen velger i dag, og hva spillerne faktisk endte med. Velger spillerne ofte noe annet, kan du
-          koble etiketten til deres valg med ett klikk.
+          {t(
+            'For hver etikett: hva appen velger i dag, og hva spillerne faktisk endte med. Velger spillerne ofte noe annet, kan du koble etiketten til deres valg med ett klikk.',
+            "For each label: what the app picks today, and what the players actually ended up with. If players often choose something else, you can link the label to their choice with one click.",
+          )}
         </p>
       </div>
       {rows === null ? (
         <p className="muted" style={{ padding: '8px 20px 20px', margin: 0 }}>
-          Laster…
+          {t('Laster…', 'Loading…')}
         </p>
       ) : rows.length === 0 ? (
         <p className="muted" style={{ padding: '8px 20px 20px', margin: 0 }}>
-          Ingen lagrede måltider fra gjenkjenning ennå.
+          {t('Ingen lagrede måltider fra gjenkjenning ennå.', 'No saved meals from recognition yet.')}
         </p>
       ) : (
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Etikett</th>
-                <th>Appen velger nå</th>
-                <th>Spillerne valgte</th>
+                <th>{t('Etikett', 'Label')}</th>
+                <th>{t('Appen velger nå', 'The app picks now')}</th>
+                <th>{t('Spillerne valgte', 'Players chose')}</th>
                 <th></th>
               </tr>
             </thead>
@@ -128,16 +131,18 @@ export function CorrectionsCard({ aliases, onLinked }: { aliases: FoodAlias[]; o
                   <tr key={row.label} style={disagree ? { background: 'rgba(245, 158, 11, 0.06)' } : undefined}>
                     <td>
                       {row.label}
-                      <div className="faint small">{row.total} gang(er)</div>
+                      <div className="faint small">
+                        {row.total} {t('gang(er)', row.total === 1 ? 'time' : 'times')}
+                      </div>
                     </td>
                     <td>
                       {current ? (
                         <>
                           {current.name}
-                          <div className="faint small">{alias ? 'Koblet av admin' : 'Automatisk gjetning'}</div>
+                          <div className="faint small">{alias ? t('Koblet av admin', 'Linked by an admin') : t('Automatisk gjetning', 'Automatic guess')}</div>
                         </>
                       ) : (
-                        <span className="faint">Ingen — spilleren må velge</span>
+                        <span className="faint">{t('Ingen — spilleren må velge', 'None — the player has to choose')}</span>
                       )}
                     </td>
                     <td>
@@ -146,15 +151,15 @@ export function CorrectionsCard({ aliases, onLinked }: { aliases: FoodAlias[]; o
                           {c.foodName} <span className="faint">× {c.count}</span>
                         </div>
                       ))}
-                      {row.choices.length > 3 && <span className="faint small">+{row.choices.length - 3} andre</span>}
+                      {row.choices.length > 3 && <span className="faint small">+{row.choices.length - 3} {t('andre', 'others')}</span>}
                     </td>
                     <td>
                       {disagree ? (
                         <button className="small" disabled={busy === row.label} onClick={() => void link(row.label, top)}>
-                          <Link2 size={13} /> Koble til «{top.foodName}»
+                          <Link2 size={13} /> {t(`Koble til «${top.foodName}»`, `Link to “${top.foodName}”`)}
                         </button>
                       ) : (
-                        <span className="pill ok">✓ Stemmer</span>
+                        <span className="pill ok">✓ {t('Stemmer', 'Matches')}</span>
                       )}
                     </td>
                   </tr>

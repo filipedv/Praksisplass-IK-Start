@@ -20,6 +20,7 @@ import { listAliases, normalizeLabel, removeAlias, type FoodAlias } from '../lib
 import { formatDateTime, formatNumber } from '../lib/format';
 import { supabase } from '../lib/supabase';
 import type { RecognitionEvent } from '../lib/types';
+import { t } from '../lib/i18n';
 
 const LIMIT = 1000; // most recent events to analyse
 
@@ -38,7 +39,7 @@ export function RecognitionPage() {
     let cancelled = false;
     listAliases()
       .then((rows) => !cancelled && setAliases(rows))
-      .catch((e) => !cancelled && toast(`Kunne ikke hente koblinger: ${e.message}`, 'error'));
+      .catch((e) => !cancelled && toast(`${t('Kunne ikke hente koblinger', "Couldn't load links")}: ${e.message}`, 'error'));
     return () => {
       cancelled = true;
     };
@@ -48,17 +49,17 @@ export function RecognitionPage() {
 
   async function unlink(alias: FoodAlias) {
     const ok = await confirm({
-      title: `Fjerne koblingen for «${alias.label}»?`,
-      body: 'Appen går tilbake til å gjette matvaren for denne etiketten.',
-      confirmLabel: 'Fjern kobling',
+      title: t(`Fjerne koblingen for «${alias.label}»?`, `Remove the link for “${alias.label}”?`),
+      body: t('Appen går tilbake til å gjette matvaren for denne etiketten.', 'The app goes back to guessing the food for this label.'),
+      confirmLabel: t('Fjern kobling', 'Remove link'),
       danger: true,
     });
     if (!ok) return;
     try {
       await removeAlias(alias.id);
-      toast(`Koblingen for «${alias.label}» er fjernet.`);
+      toast(t(`Koblingen for «${alias.label}» er fjernet.`, `The link for “${alias.label}” was removed.`));
     } catch (e) {
-      toast(`Kunne ikke fjerne: ${(e as Error).message}`, 'error');
+      toast(`${t('Kunne ikke fjerne', "Couldn't remove")}: ${(e as Error).message}`, 'error');
     }
     setAliasesKey((k) => k + 1);
   }
@@ -80,8 +81,8 @@ export function RecognitionPage() {
     };
   }, []);
 
-  if (error) return <p className="error">Kunne ikke hente data: {error}</p>;
-  if (events === null) return <p className="muted">Laster…</p>;
+  if (error) return <p className="error">{t('Kunne ikke hente data', "Couldn't load data")}: {error}</p>;
+  if (events === null) return <p className="muted">{t('Laster…', 'Loading…')}</p>;
 
   // ---- Per provider: how many labels failed to match? ----
   const byProvider = new Map<string, ProviderStats>();
@@ -114,37 +115,40 @@ export function RecognitionPage() {
   return (
     <div className="stack-lg">
       <PageHeader
-        title="Gjenkjenning"
-        subtitle={`Basert på de siste ${Math.min(events.length, LIMIT)} bildene. «Ikke funnet» = etiketten fikk ingen god match i Matvaretabellen, og spilleren måtte velge selv.`}
+        title={t('Gjenkjenning', 'Recognition')}
+        subtitle={t(
+          `Basert på de siste ${Math.min(events.length, LIMIT)} bildene. «Ikke funnet» = etiketten fikk ingen god match i Matvaretabellen, og spilleren måtte velge selv.`,
+          `Based on the last ${Math.min(events.length, LIMIT)} photos. “Not found” = the label got no good match in Matvaretabellen, and the player had to choose.`,
+        )}
       />
 
       {events.length === 0 ? (
-        <p className="muted">Ingen bilder er gjenkjent ennå.</p>
+        <p className="muted">{t('Ingen bilder er gjenkjent ennå.', 'No photos recognized yet.')}</p>
       ) : (
         <>
           <div className="kpi-row">
-            <StatTile label="Bilder" value={events.length} />
-            <StatTile label="Etiketter" value={totalLabels} />
+            <StatTile label={t('Bilder', 'Photos')} value={events.length} />
+            <StatTile label={t('Etiketter', 'Labels')} value={totalLabels} />
             <StatTile
-              label="Funnet i Matvaretabellen"
+              label={t('Funnet i Matvaretabellen', 'Found in Matvaretabellen')}
               value={totalLabels ? `${formatNumber(((totalLabels - totalUnmatched) / totalLabels) * 100)} %` : '–'}
-              sub={`${totalUnmatched} ikke funnet`}
+              sub={`${totalUnmatched} ${t('ikke funnet', 'not found')}`}
             />
           </div>
 
           <section className="card flush">
             <div style={{ padding: '16px 20px 4px' }}>
-              <h2>Per gjenkjenner</h2>
+              <h2>{t('Per gjenkjenner', 'Per recognizer')}</h2>
             </div>
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>Gjenkjenner</th>
-                    <th className="num">Bilder</th>
-                    <th className="num">Etiketter</th>
-                    <th className="num">Ikke funnet</th>
-                    <th className="num">Andel ikke funnet</th>
+                    <th>{t('Gjenkjenner', 'Recognizer')}</th>
+                    <th className="num">{t('Bilder', 'Photos')}</th>
+                    <th className="num">{t('Etiketter', 'Labels')}</th>
+                    <th className="num">{t('Ikke funnet', 'Not found')}</th>
+                    <th className="num">{t('Andel ikke funnet', 'Share not found')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -164,24 +168,27 @@ export function RecognitionPage() {
 
           <section className="card flush">
             <div style={{ padding: '16px 20px 4px' }}>
-              <h2>Etiketter som oftest ikke blir funnet</h2>
+              <h2>{t('Etiketter som oftest ikke blir funnet', 'Labels most often not found')}</h2>
               <p className="faint small" style={{ margin: '4px 0 0' }}>
-                Koble etiketten til riktig matvare — appen bruker koblingen fra neste bilde. Historikken under endres ikke.
+                {t(
+                  'Koble etiketten til riktig matvare — appen bruker koblingen fra neste bilde. Historikken under endres ikke.',
+                  'Link the label to the right food — the app uses the link from the next photo. The history below does not change.',
+                )}
               </p>
             </div>
             {topUnmatched.length === 0 ? (
               <p className="muted" style={{ padding: '8px 20px 20px', margin: 0 }}>
-                Alle etiketter har fått en match.
+                {t('Alle etiketter har fått en match.', 'Every label got a match.')}
               </p>
             ) : (
               <div className="table-wrap">
                 <table>
                   <thead>
                     <tr>
-                      <th>Etikett</th>
-                      <th>Gjenkjenner</th>
-                      <th className="num">Antall</th>
-                      <th>Kobling</th>
+                      <th>{t('Etikett', 'Label')}</th>
+                      <th>{t('Gjenkjenner', 'Recognizer')}</th>
+                      <th className="num">{t('Antall', 'Count')}</th>
+                      <th>{t('Kobling', 'Link')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -193,14 +200,14 @@ export function RecognitionPage() {
                         <td>
                           {alias ? (
                             <span className="row" style={{ gap: 8 }}>
-                              <span className="pill ok">✓ {alias.food?.name_nb ?? 'slettet matvare'}</span>
+                              <span className="pill ok">✓ {alias.food?.name_nb ?? t('slettet matvare', 'deleted food')}</span>
                               <button className="small ghost" onClick={() => setLinking(label)}>
-                                Endre
+                                {t('Endre', 'Change')}
                               </button>
                             </span>
                           ) : (
                             <button className="small" onClick={() => setLinking(label)}>
-                              <Link2 size={13} /> Koble til matvare
+                              <Link2 size={13} /> {t('Koble til matvare', 'Link to food')}
                             </button>
                           )}
                         </td>
@@ -216,23 +223,25 @@ export function RecognitionPage() {
 
           <section className="card flush">
             <div style={{ padding: '16px 20px 4px' }}>
-              <h2>Koblinger ({aliases.length})</h2>
+              <h2>
+                {t('Koblinger', 'Links')} ({aliases.length})
+              </h2>
               <p className="faint small" style={{ margin: '4px 0 0' }}>
-                Etiketter som alltid blir til en bestemt matvare. Sjekkes før appen gjetter.
+                {t('Etiketter som alltid blir til en bestemt matvare. Sjekkes før appen gjetter.', 'Labels that always become a specific food. Checked before the app guesses.')}
               </p>
             </div>
             {aliases.length === 0 ? (
               <p className="muted" style={{ padding: '8px 20px 20px', margin: 0 }}>
-                Ingen koblinger ennå.
+                {t('Ingen koblinger ennå.', 'No links yet.')}
               </p>
             ) : (
               <div className="table-wrap">
                 <table>
                   <thead>
                     <tr>
-                      <th>Etikett</th>
-                      <th>Blir til</th>
-                      <th>Opprettet</th>
+                      <th>{t('Etikett', 'Label')}</th>
+                      <th>{t('Blir til', 'Becomes')}</th>
+                      <th>{t('Opprettet', 'Created')}</th>
                       <th></th>
                     </tr>
                   </thead>
@@ -244,19 +253,19 @@ export function RecognitionPage() {
                           {a.food ? (
                             <>
                               {a.food.name_nb}
-                              {a.food.source === 'custom' && <span className="pill warn" style={{ marginLeft: 8 }}>Egendefinert</span>}
+                              {a.food.source === 'custom' && <span className="pill warn" style={{ marginLeft: 8 }}>{t('Egendefinert', 'Custom')}</span>}
                             </>
                           ) : (
-                            <span className="faint">(matvaren er slettet)</span>
+                            <span className="faint">{t('(matvaren er slettet)', '(the food was deleted)')}</span>
                           )}
                         </td>
                         <td className="muted small">{formatDateTime(a.created_at)}</td>
                         <td>
                           <div className="row" style={{ gap: 6, justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
                             <button className="small" onClick={() => setLinking(a.label)}>
-                              Endre
+                              {t('Endre', 'Change')}
                             </button>
-                            <button className="small danger" onClick={() => void unlink(a)} aria-label={`Fjern koblingen for ${a.label}`}>
+                            <button className="small danger" onClick={() => void unlink(a)} aria-label={`${t('Fjern koblingen for', 'Remove the link for')} ${a.label}`}>
                               <Trash2 size={13} />
                             </button>
                           </div>
@@ -271,15 +280,15 @@ export function RecognitionPage() {
 
           <section className="card flush">
             <div style={{ padding: '16px 20px 4px' }}>
-              <h2>Siste bilder</h2>
+              <h2>{t('Siste bilder', 'Latest photos')}</h2>
             </div>
             <div className="table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>Tid</th>
-                    <th>Gjenkjenner</th>
-                    <th>Etiketter (grønn = funnet, rød = ikke funnet)</th>
+                    <th>{t('Tid', 'Time')}</th>
+                    <th>{t('Gjenkjenner', 'Recognizer')}</th>
+                    <th>{t('Etiketter (grønn = funnet, rød = ikke funnet)', 'Labels (green = found, red = not found)')}</th>
                   </tr>
                 </thead>
                 <tbody>

@@ -33,6 +33,8 @@
      energy = categorical slot 2 (orange), water = slot 1 (blue). */
   --series-kcal: #d95926;
   --series-water: #3987e5;
+  --series-weight: #7d6ff0; /* weight line (validated vs --card) */
+  --series-height: #1fa8a0; /* height line (validated vs --card) */
 
   /* Daily goal status — reserved meaning, ALWAYS shown with icon + label. */
   --status-gray: #64748b;   /* not logged */
@@ -302,3 +304,33 @@ dialog.palette { width: min(560px, 94vw); padding: 14px; margin-top: 12vh; }
   th, td { padding: 9px 12px; }
   .toasts { left: 12px; right: 12px; bottom: 12px; max-width: none; }
 }
+
+/* ---------- "Trenger oppfølging" rows with a "Fulgt opp" button ---------- */
+.todo-row { display: flex; gap: 6px; align-items: center; }
+.todo-row .todo { flex: 1; min-width: 0; }
+.todo-row > button { flex-shrink: 0; display: inline-flex; gap: 4px; align-items: center; }
+.todo-row.handled .todo { opacity: 0.6; }
+
+/* ---------- Vekt og høyde + Notater (player page) ---------- */
+.chart-title { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+.chart-empty { height: 180px; display: flex; align-items: center; justify-content: center; border: 1px dashed var(--raised); border-radius: 12px; }
+.notice { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border-radius: 12px; font-size: 13px; }
+.notice svg { flex-shrink: 0; margin-top: 1px; }
+.notice.warn { background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); color: #fde68a; }
+.note { background: var(--raised); border-radius: 12px; padding: 10px 14px; color: var(--text-2); font-size: 14px; }
+textarea { resize: vertical; font: inherit; width: 100%; }
+
+/* ---------- Kamper og treninger ---------- */
+/* A checkbox with its text on one line (the global label style stacks them). */
+label.checkbox { flex-direction: row; align-items: center; gap: 8px; font-size: 14px; color: var(--text-2); font-weight: 400; cursor: pointer; }
+label.checkbox > input { width: auto; }
+.reminder-row { background: var(--raised); border-radius: 12px; padding: 10px 14px; }
+.reminder-row.off { opacity: 0.55; }
+.reminder-row textarea { background: var(--page); }
+.fixture-icon { display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 10px; flex-shrink: 0; }
+.fixture-icon.match { background: rgba(79, 70, 229, 0.18); color: var(--primary-text); }
+.fixture-icon.training { background: rgba(52, 211, 153, 0.14); color: var(--success); }
+.reminder-list { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.reminder-list li { display: flex; flex-direction: column; gap: 2px; padding-left: 10px; border-left: 2px solid var(--border); }
+.reminder-list li.sent { opacity: 0.5; }
+details > summary { cursor: pointer; }

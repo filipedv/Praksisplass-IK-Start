@@ -6,6 +6,7 @@ import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, font, spacing } from '@/lib/theme';
+import { useI18n } from '@/lib/i18n';
 
 type Props = {
   title: string;
@@ -15,12 +16,13 @@ type Props = {
 };
 
 export function ScreenHeader({ title, onBack, backIcon = 'arrow-back', right }: Props) {
+  const { t } = useI18n();
   return (
     <View style={styles.row}>
       {/* Fixed-width sides keep the title centred whether or not there's an arrow. */}
       <View style={styles.side}>
         {onBack && (
-          <Pressable onPress={onBack} hitSlop={12} accessibilityLabel="Tilbake">
+          <Pressable onPress={onBack} hitSlop={12} accessibilityLabel={t('Tilbake', 'Back')}>
             <Ionicons name={backIcon} size={backIcon === 'arrow-back' ? 20 : 22} color={colors.iconSoft} />
           </Pressable>
         )}

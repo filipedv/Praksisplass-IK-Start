@@ -3,10 +3,11 @@
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {
-    "@expo/ui": "~57.0.23",
+    "@expo/ui": "~57.0.26",
     "@expo/vector-icons": "^15.0.2",
+    "@react-native-community/datetimepicker": "9.1.0",
     "@supabase/supabase-js": "^2.117.2",
-    "expo": "~57.0.28",
+    "expo": "~57.0.31",
     "expo-camera": "~57.0.6",
     "expo-constants": "~57.0.21",
     "expo-device": "~57.0.2",
@@ -16,8 +17,9 @@
     "expo-image": "~57.0.5",
     "expo-image-manipulator": "~57.0.21",
     "expo-image-picker": "~57.0.20",
-    "expo-linking": "~57.0.12",
-    "expo-router": "~57.0.26",
+    "expo-linking": "~57.0.13",
+    "expo-notifications": "~57.0.24",
+    "expo-router": "~57.0.29",
     "expo-splash-screen": "~57.0.10",
     "expo-sqlite": "~57.0.4",
     "expo-status-bar": "~57.0.1",
@@ -47,7 +49,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "gen:types": "cd .. && npx supabase gen types typescript --linked --schema public | (echo '// GENERATED from the live database — do not edit by hand.'; echo '// Regenerate after every migration:  npm run gen:types  (in this folder)'; echo; cat) > player-app/src/lib/database.types.ts"
   },
   "private": true
 }

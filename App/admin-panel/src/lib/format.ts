@@ -1,20 +1,23 @@
-// Small formatting helpers (Norwegian style: comma as decimal separator).
+// Small formatting helpers. Norwegian uses a decimal comma (72,4), English
+// a decimal point (72.4) — formatNumber follows the chosen language.
 
+import { getLanguage, locale } from './i18n';
 import type { NutrientKey, Nutrition } from './types';
 
 export function formatNumber(value: number | undefined | null, decimals = 0): string {
   if (value === undefined || value === null || Number.isNaN(value)) return '–';
-  return value.toFixed(decimals).replace('.', ',');
+  const text = value.toFixed(decimals);
+  return getLanguage() === 'en' ? text : text.replace('.', ',');
 }
 
 export const formatDateTime = (iso: string) =>
-  new Date(iso).toLocaleString('nb-NO', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  new Date(iso).toLocaleString(locale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
 
 export const formatTime = (iso: string) =>
-  new Date(iso).toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' });
+  new Date(iso).toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' });
 
 export const formatDay = (date: Date) =>
-  date.toLocaleDateString('nb-NO', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  date.toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
 /** Date → "2026-10-14" in local time (what <input type="date"> uses). */
 export function toISODate(date: Date): string {

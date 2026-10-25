@@ -4,6 +4,7 @@
 //   /users           → Brukere (accounts, roles, active/inactive)
 //   /users/:id       → one player: goals, charts, days, meals (+ corrections), exports
 //   /teams           → Lag (teams and team goals)
+//   /fixtures        → Kamper og treninger (calendar + reminders to players)
 //   /log             → Endringslogg (who changed what)
 //   /foods           → Matvarer (search + custom foods editor)
 //   /settings        → Klubbinnstillinger
@@ -20,6 +21,7 @@ import { Layout } from './components/Layout';
 import { FeedbackProvider } from './feedback/FeedbackProvider';
 import { ClubSettingsPage } from './pages/ClubSettingsPage';
 import { AuditPage } from './pages/AuditPage';
+import { FixturesPage } from './pages/FixturesPage';
 import { FoodsPage } from './pages/FoodsPage';
 import { LoginPage } from './pages/LoginPage';
 import { OverviewPage } from './pages/OverviewPage';
@@ -27,11 +29,15 @@ import { PlayerPage } from './pages/PlayerPage';
 import { RecognitionPage } from './pages/RecognitionPage';
 import { TeamsPage } from './pages/TeamsPage';
 import { UsersPage } from './pages/UsersPage';
+import { t, useLanguage } from './lib/i18n';
 
 export default function App() {
+  // Changing the language re-mounts everything below (key), so every text is
+  // produced again in the new language. The login session and URL are kept.
+  const language = useLanguage();
   return (
     <AuthProvider>
-      <FeedbackProvider>
+      <FeedbackProvider key={language}>
         <BrowserRouter>
           <Gate />
         </BrowserRouter>
@@ -44,18 +50,20 @@ export default function App() {
 function Gate() {
   const { session, isAdmin, isLoading, signOut } = useAuth();
 
-  if (isLoading) return <p className="center muted">Laster…</p>;
+  if (isLoading) return <p className="center muted">{t('Laster…', 'Loading…')}</p>;
   if (!session) return <LoginPage />;
 
   if (!isAdmin) {
     return (
       <div className="center narrow card stack">
-        <h1>Ingen admintilgang</h1>
+        <h1>{t('Ingen admintilgang', 'No admin access')}</h1>
         <p className="muted" style={{ margin: 0 }}>
-          Kontoen din er ikke administrator (eller er deaktivert). En administrator kan gi deg rollen, eller den
-          kan settes én gang i Supabase-dashboardet — se README.
+          {t(
+            'Kontoen din er ikke administrator (eller er deaktivert). En administrator kan gi deg rollen, eller den kan settes én gang i Supabase-dashboardet — se README.',
+            'Your account is not an administrator (or has been deactivated). An administrator can give you the role, or it can be set once in the Supabase dashboard — see the README.',
+          )}
         </p>
-        <button onClick={signOut}>Logg ut</button>
+        <button onClick={signOut}>{t('Logg ut', 'Sign out')}</button>
       </div>
     );
   }
@@ -67,6 +75,7 @@ function Gate() {
         <Route path="users" element={<UsersPage />} />
         <Route path="users/:id" element={<PlayerPage />} />
         <Route path="teams" element={<TeamsPage />} />
+        <Route path="fixtures" element={<FixturesPage />} />
         <Route path="log" element={<AuditPage />} />
         <Route path="foods" element={<FoodsPage />} />
         <Route path="settings" element={<ClubSettingsPage />} />

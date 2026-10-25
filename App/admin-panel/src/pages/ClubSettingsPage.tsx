@@ -11,14 +11,16 @@ import { PageHeader } from '../components/ui';
 import { useFeedback } from '../feedback/feedback-context';
 import { supabase } from '../lib/supabase';
 import type { ClubSettings } from '../lib/types';
+import { locale, t } from '../lib/i18n';
 
 // Field name in the database → label and unit in the form.
+// (`get label()` follows the chosen language.)
 const NUMBER_FIELDS = [
-  { key: 'default_goal_kcal', label: 'Energi', unit: 'kcal / dag' },
-  { key: 'default_goal_protein_g', label: 'Protein', unit: 'g / dag' },
-  { key: 'default_goal_carbs_g', label: 'Karbohydrater', unit: 'g / dag' },
-  { key: 'default_goal_fat_g', label: 'Fett', unit: 'g / dag' },
-  { key: 'default_goal_water_ml', label: 'Vann', unit: 'ml / dag' },
+  { key: 'default_goal_kcal', get label() { return t('Energi', 'Energy'); }, unit: 'kcal' },
+  { key: 'default_goal_protein_g', label: 'Protein', unit: 'g' },
+  { key: 'default_goal_carbs_g', get label() { return t('Karbohydrater', 'Carbohydrates'); }, unit: 'g' },
+  { key: 'default_goal_fat_g', get label() { return t('Fett', 'Fat'); }, unit: 'g' },
+  { key: 'default_goal_water_ml', get label() { return t('Vann', 'Water'); }, unit: 'ml' },
 ] as const;
 
 type NumberKey = (typeof NUMBER_FIELDS)[number]['key'];
@@ -40,7 +42,7 @@ export function ClubSettingsPage() {
       .eq('id', 1)
       .single()
       .then(({ data, error }) => {
-        if (error || !data) return setLoadError(error?.message ?? 'ukjent feil');
+        if (error || !data) return setLoadError(error?.message ?? t('ukjent feil', 'unknown error'));
         showSettings(data as ClubSettings);
       });
   }, []);
@@ -62,19 +64,21 @@ export function ClubSettingsPage() {
     e.preventDefault();
     if (!form) return;
 
-    if (!form.club_name.trim()) return toast('Klubbnavn kan ikke være tomt.', 'error');
-    const changes: Record<string, string | number | null> = {
-      club_name: form.club_name.trim(),
-      fatsecret_trial_started_on: form.trial_start || null, // empty = not started
-    };
+    if (!form.club_name.trim()) return toast(t('Klubbnavn kan ikke være tomt.', 'Club name cannot be empty.'), 'error');
+    const goals = {} as Record<NumberKey, number>;
     for (const { key, label } of NUMBER_FIELDS) {
       const value = Number(form[key]);
       // The database also checks these (CHECK constraints), this is just a friendlier message.
       if (!Number.isInteger(value) || value < 0 || (key === 'default_goal_kcal' && value === 0)) {
-        return toast(`${label}: må være et helt tall ≥ 0.`, 'error');
+        return toast(`${label}: ${t('må være et helt tall ≥ 0.', 'must be a whole number ≥ 0.')}`, 'error');
       }
-      changes[key] = value;
+      goals[key] = value;
     }
+    const changes = {
+      club_name: form.club_name.trim(),
+      fatsecret_trial_started_on: form.trial_start || null, // empty = not started
+      ...goals,
+    };
 
     setBusy(true);
     const { data, error } = await supabase
@@ -84,52 +88,59 @@ export function ClubSettingsPage() {
       .select(SETTINGS_COLUMNS)
       .single();
     setBusy(false);
-    if (error || !data) return toast(`Kunne ikke lagre: ${error?.message ?? 'ingen tilgang'}`, 'error');
+    if (error || !data) return toast(`${t('Kunne ikke lagre', "Couldn't save")}: ${error?.message ?? t('ingen tilgang', 'no access')}`, 'error');
     showSettings(data as ClubSettings);
-    toast('Klubbinnstillingene er lagret.');
+    toast(t('Klubbinnstillingene er lagret.', 'The club settings have been saved.'));
   }
 
-  if (loadError) return <p className="error">Kunne ikke hente innstillinger: {loadError}</p>;
-  if (!form || !settings) return <p className="muted">Laster…</p>;
+  if (loadError) return <p className="error">{t('Kunne ikke hente innstillinger', "Couldn't load the settings")}: {loadError}</p>;
+  if (!form || !settings) return <p className="muted">{t('Laster…', 'Loading…')}</p>;
 
   return (
     <div className="stack-lg">
-      <PageHeader title="Klubbinnstillinger" subtitle="Gjelder hele klubben" />
+      <PageHeader title={t('Klubbinnstillinger', 'Club settings')} subtitle={t('Gjelder hele klubben', 'Applies to the whole club')} />
       <form className="card stack" style={{ maxWidth: 620 }} onSubmit={handleSubmit}>
 
       <label>
-        Klubb / lag
+        {t('Klubb / lag', 'Club / team')}
         <input value={form.club_name} onChange={(e) => setForm({ ...form, club_name: e.target.value })} />
       </label>
 
-      <h2>Standard dagsmål</h2>
+      <h2>{t('Standard dagsmål', 'Default daily goals')}</h2>
       <p className="muted" style={{ margin: 0 }}>
-        Brukes for alle som ikke har egne mål. Egne mål per spiller settes på spillerens side («Juster mål»).
-        Plassholderverdier — ikke ernæringsråd; bør settes av en kvalifisert person.
+        {t(
+          'Brukes for alle som ikke har egne mål. Egne mål per spiller settes på spillerens side («Juster mål»). Plassholderverdier — ikke ernæringsråd; bør settes av en kvalifisert person.',
+          "Used for everyone without their own goals. A player's own goals are set on their page (“Adjust goals”). Placeholder values — not nutrition advice; should be set by a qualified person.",
+        )}
       </p>
       <div className="grid-2">
         {NUMBER_FIELDS.map(({ key, label, unit }) => (
           <label key={key}>
-            {label} ({unit})
+            {label} ({unit} {t('/ dag', '/ day')})
             <input inputMode="numeric" value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} />
           </label>
         ))}
       </div>
 
-      <h2>FatSecret-prøveperiode</h2>
+      <h2>{t('FatSecret-prøveperiode', 'FatSecret trial')}</h2>
       <p className="muted" style={{ margin: 0 }}>
-        Bildegjenkjenning fra FatSecret er gratis i 14 dager. Sett datoen den starter, så teller Systemstatus på Oversikt ned.
+        {t(
+          'Bildegjenkjenning fra FatSecret er gratis i 14 dager. Sett datoen den starter, så teller Systemstatus på Oversikt ned.',
+          'Image recognition from FatSecret is free for 14 days. Set the date it starts, and System status on Overview counts down.',
+        )}
       </p>
       <label style={{ maxWidth: 260 }}>
-        Startdato
+        {t('Startdato', 'Start date')}
         <input type="date" value={form.trial_start} onChange={(e) => setForm({ ...form, trial_start: e.target.value })} />
       </label>
 
       <div className="row">
         <button type="submit" className="primary" disabled={busy}>
-          {busy ? 'Lagrer…' : 'Lagre'}
+          {busy ? t('Lagrer…', 'Saving…') : t('Lagre', 'Save')}
         </button>
-        <span className="muted small">Sist endret {new Date(settings.updated_at).toLocaleString('nb-NO')}</span>
+        <span className="muted small">
+          {t('Sist endret', 'Last changed')} {new Date(settings.updated_at).toLocaleString(locale())}
+        </span>
       </div>
       </form>
     </div>

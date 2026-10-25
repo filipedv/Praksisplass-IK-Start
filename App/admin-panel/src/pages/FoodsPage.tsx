@@ -18,7 +18,8 @@ import { PageHeader } from '../components/ui';
 import { useFeedback } from '../feedback/feedback-context';
 import { formatNumber } from '../lib/format';
 import { supabase } from '../lib/supabase';
-import { NUTRIENTS, type Food } from '../lib/types';
+import { NUTRIENTS, toSearchFood, type Food } from '../lib/types';
+import { t } from '../lib/i18n';
 
 const FOOD_COLUMNS = 'id, source, name_nb, name_en, search_keywords, nutrition, portions';
 
@@ -52,7 +53,8 @@ function FoodsPageContent({ initialQuery }: { initialQuery: string }) {
   const load = useCallback(async (text: string) => {
     if (text.trim()) {
       const { data } = await supabase.rpc('search_foods', { search_text: text, max_results: 50 });
-      setFoods((data ?? []) as Food[]);
+      // Search results have no keywords; the full row is fetched when one is opened.
+      setFoods((data ?? []).map((row) => ({ ...toSearchFood(row), search_keywords: [] })));
     } else {
       const { data } = await supabase
         .from('foods')
@@ -79,7 +81,7 @@ function FoodsPageContent({ initialQuery }: { initialQuery: string }) {
   async function create(draft: FoodDraft) {
     const { error } = await supabase.from('foods').insert({ ...draft, source: 'custom' });
     if (error) return error.message;
-    toast(`«${draft.name_nb}» er lagt til.`);
+    toast(t(`«${draft.name_nb}» er lagt til.`, `“${draft.name_nb}” has been added.`));
     setPanel({ kind: 'none' });
     void load(query);
     return null;
@@ -88,8 +90,8 @@ function FoodsPageContent({ initialQuery }: { initialQuery: string }) {
   async function save(id: string, draft: FoodDraft) {
     const { data, error } = await supabase.from('foods').update(draft).eq('id', id).select('id');
     if (error) return error.message;
-    if (!data?.length) return 'Ingen tilgang til å endre denne matvaren.';
-    toast(`«${draft.name_nb}» er lagret.`);
+    if (!data?.length) return t('Ingen tilgang til å endre denne matvaren.', 'No access to change this food.');
+    toast(t(`«${draft.name_nb}» er lagret.`, `“${draft.name_nb}” has been saved.`));
     setPanel({ kind: 'none' });
     void load(query);
     return null;
@@ -97,15 +99,15 @@ function FoodsPageContent({ initialQuery }: { initialQuery: string }) {
 
   async function remove(food: Food) {
     const ok = await confirm({
-      title: `Slette «${food.name_nb}»?`,
-      body: 'Måltider som allerede er logget beholder verdiene sine.',
-      confirmLabel: 'Slett',
+      title: t(`Slette «${food.name_nb}»?`, `Delete “${food.name_nb}”?`),
+      body: t('Måltider som allerede er logget beholder verdiene sine.', 'Meals already logged keep their values.'),
+      confirmLabel: t('Slett', 'Delete'),
       danger: true,
     });
     if (!ok) return;
     const { error } = await supabase.from('foods').delete().eq('id', food.id);
-    if (error) toast(`Kunne ikke slette: ${error.message}`, 'error');
-    else toast(`«${food.name_nb}» er slettet.`);
+    if (error) toast(`${t('Kunne ikke slette', "Couldn't delete")}: ${error.message}`, 'error');
+    else toast(t(`«${food.name_nb}» er slettet.`, `“${food.name_nb}” has been deleted.`));
     setPanel({ kind: 'none' });
     void load(query);
   }
@@ -113,18 +115,21 @@ function FoodsPageContent({ initialQuery }: { initialQuery: string }) {
   return (
     <div className="stack-lg">
       <PageHeader
-        title="Matvarer"
-        subtitle="Matvaretabellen (2 121 matvarer) + egendefinerte"
+        title={t('Matvarer', 'Foods')}
+        subtitle={t('Matvaretabellen (2 121 matvarer) + egendefinerte', 'Matvaretabellen (2,121 foods) + custom')}
         actions={
           <button className="primary" onClick={() => setPanel({ kind: 'new', draft: EMPTY_DRAFT })}>
-            <Plus size={15} /> Ny egendefinert matvare
+            <Plus size={15} /> {t('Ny egendefinert matvare', 'New custom food')}
           </button>
         }
       />
       <p className="hint">
-        Tips: Gir gjenkjenningen en etikett som ikke blir funnet, f.eks. «chicken breast»? <strong>Koble den</strong> til
-        riktig matvare — under «Gjenkjenning», eller i panelet til høyre når du har valgt matvaren. Lag bare en
-        egendefinert matvare hvis den faktisk mangler i Matvaretabellen.
+        {t('Tips: Gir gjenkjenningen en etikett som ikke blir funnet, f.eks. «chicken breast»?', 'Tip: does recognition return a label that isn’t found, e.g. “chicken breast”?')}{' '}
+        <strong>{t('Koble den', 'Link it')}</strong>{' '}
+        {t(
+          'til riktig matvare — under «Gjenkjenning», eller i panelet til høyre når du har valgt matvaren. Lag bare en egendefinert matvare hvis den faktisk mangler i Matvaretabellen.',
+          'to the right food — under “Recognition”, or in the panel on the right once you have chosen the food. Only make a custom food if it is really missing from Matvaretabellen.',
+        )}
       </p>
 
       <div className="split">
@@ -133,28 +138,28 @@ function FoodsPageContent({ initialQuery }: { initialQuery: string }) {
             <Search size={15} />
             <input
               type="search"
-              placeholder="Søk i alle matvarer (norsk eller engelsk) — tomt felt viser egendefinerte"
+              placeholder={t('Søk i alle matvarer (norsk eller engelsk) — tomt felt viser egendefinerte', 'Search all foods (Norwegian or English) — an empty field shows custom foods')}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
           </div>
           {foods === null ? (
-            <p className="muted">Laster…</p>
+            <p className="muted">{t('Laster…', 'Loading…')}</p>
           ) : foods.length === 0 ? (
-            <p className="muted">{query ? 'Ingen treff.' : 'Ingen egendefinerte matvarer ennå.'}</p>
+            <p className="muted">{query ? t('Ingen treff.', 'No results.') : t('Ingen egendefinerte matvarer ennå.', 'No custom foods yet.')}</p>
           ) : (
             <div className="card flush">
               <div className="table-wrap">
                 <table>
                   <thead>
                     <tr>
-                      <th>Navn</th>
-                      <th>Kilde</th>
+                      <th>{t('Navn', 'Name')}</th>
+                      <th>{t('Kilde', 'Source')}</th>
                       <th className="num">kcal</th>
                       <th className="num">Protein</th>
-                      <th className="num">Karbo</th>
-                      <th className="num">Fett</th>
-                      <th>Porsjon</th>
+                      <th className="num">{t('Karbo', 'Carbs')}</th>
+                      <th className="num">{t('Fett', 'Fat')}</th>
+                      <th>{t('Porsjon', 'Portion')}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -171,7 +176,7 @@ function FoodsPageContent({ initialQuery }: { initialQuery: string }) {
                           </td>
                           <td>
                             <span className={`pill ${food.source === 'custom' ? 'warn' : ''}`}>
-                              {food.source === 'custom' ? 'Egendefinert' : 'Matvaretabellen'}
+                              {food.source === 'custom' ? t('Egendefinert', 'Custom') : 'Matvaretabellen'}
                             </span>
                           </td>
                           <td className="num">{formatNumber(food.nutrition.energy_kcal)}</td>
@@ -190,18 +195,23 @@ function FoodsPageContent({ initialQuery }: { initialQuery: string }) {
               </div>
             </div>
           )}
-          <p className="faint small" style={{ margin: 0 }}>Verdier per 100 g.</p>
+          <p className="faint small" style={{ margin: 0 }}>
+            {t('Verdier per 100 g.', 'Values per 100 g.')}
+          </p>
         </div>
 
         {/* Pinned while the list scrolls; scrolls by itself if taller than the window. */}
         <aside className="card stack" style={{ position: 'sticky', top: 24, maxHeight: 'calc(100vh - 48px)', overflowY: 'auto' }}>
-          {panel.kind === 'none' && <p className="muted">Velg en matvare i listen, eller lag en ny.</p>}
+          {panel.kind === 'none' && <p className="muted">{t('Velg en matvare i listen, eller lag en ny.', 'Choose a food in the list, or make a new one.')}</p>}
 
           {panel.kind === 'view' && (
             <>
               <h2 style={{ margin: 0 }}>{panel.food.name_nb}</h2>
               <p className="muted small" style={{ margin: 0 }}>
-                Fra Matvaretabellen — kan ikke endres her. Lag en kopi for å rette verdier eller navn.
+                {t(
+                  'Fra Matvaretabellen — kan ikke endres her. Lag en kopi for å rette verdier eller navn.',
+                  'From Matvaretabellen — cannot be changed here. Make a copy to correct values or the name.',
+                )}
               </p>
               <NutritionTable food={panel.food} />
               <FoodLinks key={panel.food.id} foodId={panel.food.id} foodName={panel.food.name_nb} />
@@ -220,20 +230,24 @@ function FoodsPageContent({ initialQuery }: { initialQuery: string }) {
                     },
                   })
                 }>
-                Lag egendefinert kopi
+                {t('Lag egendefinert kopi', 'Make a custom copy')}
               </button>
             </>
           )}
 
           {panel.kind === 'new' && (
             <>
-              <h2 style={{ margin: 0 }}>Ny egendefinert matvare</h2>
-              {panel.copiedFrom && <p className="muted small">Kopi av «{panel.copiedFrom}». Endre det som er feil.</p>}
+              <h2 style={{ margin: 0 }}>{t('Ny egendefinert matvare', 'New custom food')}</h2>
+              {panel.copiedFrom && (
+                <p className="muted small">
+                  {t(`Kopi av «${panel.copiedFrom}». Endre det som er feil.`, `Copy of “${panel.copiedFrom}”. Change what is wrong.`)}
+                </p>
+              )}
               <FoodForm
                 // A new key per draft makes React start the form fresh.
                 key={panel.copiedFrom ?? 'new'}
                 initial={panel.draft}
-                submitLabel="Legg til"
+                submitLabel={t('Legg til', 'Add')}
                 onSubmit={create}
                 onCancel={() => setPanel({ kind: 'none' })}
               />
@@ -242,11 +256,11 @@ function FoodsPageContent({ initialQuery }: { initialQuery: string }) {
 
           {panel.kind === 'edit' && (
             <>
-              <h2 style={{ margin: 0 }}>Rediger matvare</h2>
+              <h2 style={{ margin: 0 }}>{t('Rediger matvare', 'Edit food')}</h2>
               <FoodForm
                 key={panel.food.id}
                 initial={panel.food}
-                submitLabel="Lagre"
+                submitLabel={t('Lagre', 'Save')}
                 onSubmit={(draft) => save(panel.food.id, draft)}
                 onCancel={() => setPanel({ kind: 'none' })}
                 onDelete={() => void remove(panel.food)}
@@ -273,7 +287,7 @@ function NutritionTable({ food }: { food: Food }) {
           </tr>
         ))}
         <tr>
-          <td>Porsjoner</td>
+          <td>{t('Porsjoner', 'Portions')}</td>
           <td className="num">
             {food.portions.length ? food.portions.map((p) => `${p.name} ${formatNumber(p.grams)} g`).join(', ') : '–'}
           </td>

@@ -8,8 +8,10 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Tabs } from 'expo-router';
 
 import { colors } from '@/lib/theme';
+import { useI18n } from '@/lib/i18n';
 
 export default function TabLayout() {
+  const { t } = useI18n();
   return (
     <Tabs
       screenOptions={{
@@ -26,21 +28,21 @@ export default function TabLayout() {
       <Tabs.Screen
         name="today"
         options={{
-          title: 'Dagsoversikt', // read out by screen readers
+          title: t('Dagsoversikt', 'Daily overview'), // read out by screen readers
           tabBarIcon: ({ color }) => <Ionicons name="restaurant-outline" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Kamera',
+          title: t('Kamera', 'Camera'),
           tabBarIcon: ({ color }) => <Ionicons name="camera-outline" size={22} color={color} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profil',
+          title: t('Profil', 'Profile'),
           tabBarIcon: ({ color }) => <Ionicons name="person-outline" size={22} color={color} />,
         }}
       />

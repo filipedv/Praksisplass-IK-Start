@@ -6,7 +6,9 @@ import type { Session } from '@supabase/supabase-js';
 import { createContext, use, useEffect, useState, type PropsWithChildren } from 'react';
 
 import { clearCache } from '@/lib/cache';
+import { cancelAllReminders } from '@/reminders/reminders';
 import { supabase } from '@/lib/supabase';
+import { translate } from '@/lib/i18n';
 
 type SessionContextValue = {
   session: Session | null;
@@ -44,12 +46,13 @@ export function SessionProvider({ children }: PropsWithChildren) {
 
   async function signIn(email: string, password: string) {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return { error: error ? 'Feil e-post eller passord.' : null };
+    return { error: error ? translate('Feil e-post eller passord.', 'Wrong email or password.') : null };
   }
 
   async function signOut() {
     await supabase.auth.signOut();
     clearCache(); // never show one person's cached data to the next person
+    await cancelAllReminders().catch(() => {}); // no meal reminders for a logged-out phone
   }
 
   return <SessionContext value={{ session, isLoading, signIn, signOut }}>{children}</SessionContext>;

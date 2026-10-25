@@ -8,6 +8,7 @@ import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, ClipPath, Defs, Path, Rect } from 'react-native-svg';
 
 import { colors, font } from '@/lib/theme';
+import { useI18n } from '@/lib/i18n';
 
 export const GLASS_ML = 500;
 
@@ -50,6 +51,7 @@ export function GlassRow({ totalMl, goalMl, size }: { totalMl: number; goalMl: n
 
 /** The ring on the Vann screen: blue arc = share of the goal reached. */
 export function WaterRing({ totalMl, goalMl }: { totalMl: number; goalMl: number }) {
+  const { t } = useI18n();
   const pct = Math.min(100, Math.round((totalMl / goalMl) * 100));
   const CIRCUMFERENCE = 2 * Math.PI * 44; // ≈ 276, as in the sketch
 
@@ -72,7 +74,9 @@ export function WaterRing({ totalMl, goalMl }: { totalMl: number; goalMl: number
       <View style={styles.ringCenter}>
         <Ionicons name="water-outline" size={16} color={WATER_BLUE} />
         <Text style={styles.ringValue}>{totalMl} ml</Text>
-        <Text style={styles.ringGoal}>av {goalMl} ml</Text>
+        <Text style={styles.ringGoal}>
+          {t('av', 'of')} {goalMl} ml
+        </Text>
       </View>
     </View>
   );

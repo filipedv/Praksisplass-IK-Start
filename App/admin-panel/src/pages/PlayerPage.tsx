@@ -5,6 +5,7 @@
 //   - key numbers, kcal + water per day vs goal, goal status per day
 //   - one selected day in detail, where meal items can be CORRECTED
 //   - a day-by-day table with every number (the charts' table view)
+//   - weight + height over time, and private staff notes (MeasurementsCard, NotesCard)
 //   - exports (CSV, and all data as JSON for GDPR access requests)
 //   - recent changes about this player (change log)
 //   - danger zone: permanent deletion (GDPR right to erasure)
@@ -21,6 +22,8 @@ import { ChangeList } from '../components/ChangeList';
 import { ColumnChart } from '../components/ColumnChart';
 import { DayMealsTable } from '../components/DayMealsTable';
 import { GoalsCard } from '../components/GoalsCard';
+import { MeasurementsCard } from '../components/MeasurementsCard';
+import { NotesCard } from '../components/NotesCard';
 import { StatusStrip } from '../components/StatusStrip';
 import { Avatar, Meter, PageHeader, Segmented, StatTile, StatusLabel } from '../components/ui';
 import { useFeedback } from '../feedback/feedback-context';
@@ -41,6 +44,7 @@ import {
 import { supabase } from '../lib/supabase';
 import { setUserTeam } from '../lib/teams-api';
 import { ROLE_LABELS, type AuditEntry, type Meal, type Profile, PROFILE_COLUMNS } from '../lib/types';
+import { locale, t } from '../lib/i18n';
 
 const RANGES = [7, 14, 30, 90] as const;
 type Range = (typeof RANGES)[number];
@@ -80,7 +84,7 @@ async function fetchDayMeals(userId: string, dayIso: string): Promise<Meal[]> {
   end.setDate(end.getDate() + 1); // next local midnight (correct on 23/25-hour DST days too)
   const { data, error } = await supabase
     .from('meals')
-    .select('id, eaten_at, recognizer, meal_items (id, food_name, amount_g, nutrition, detected_label)')
+    .select('id, eaten_at, recognizer, admin_changed_at, meal_items (id, food_name, amount_g, nutrition, detected_label)')
     .eq('user_id', userId)
     .gte('eaten_at', start.toISOString())
     .lt('eaten_at', end.toISOString())
@@ -90,7 +94,7 @@ async function fetchDayMeals(userId: string, dayIso: string): Promise<Meal[]> {
 }
 
 const longDay = (iso: string) => {
-  const s = new Date(`${iso}T12:00`).toLocaleDateString('nb-NO', { weekday: 'long', day: 'numeric', month: 'long' });
+  const s = new Date(`${iso}T12:00`).toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long' });
   return s.charAt(0).toUpperCase() + s.slice(1);
 };
 
@@ -141,13 +145,13 @@ export function PlayerPage() {
     };
   }, [id, selectedDay, reloadKey]);
 
-  if (error && !data) return <p className="error">Kunne ikke hente data: {error}</p>;
-  if (!data) return <p className="muted">Laster…</p>;
+  if (error && !data) return <p className="error">{t('Kunne ikke hente data', "Couldn't load data")}: {error}</p>;
+  if (!data) return <p className="muted">{t('Laster…', 'Loading…')}</p>;
   if (!data.user) {
     return (
       <div className="stack">
-        <Link to="/users">← Brukere</Link>
-        <p className="error">Fant ikke brukeren.</p>
+        <Link to="/users">← {t('Brukere', 'Users')}</Link>
+        <p className="error">{t('Fant ikke brukeren.', 'User not found.')}</p>
       </div>
     );
   }
@@ -187,16 +191,20 @@ export function PlayerPage() {
   };
 
   // Names for ids in the change list (teams + this player).
-  const names = new Map<string, string>([[user.id, user.display_name], ...[...data.goals.teams.values()].map((t) => [t.id, t.name] as [string, string])]);
+  const names = new Map<string, string>([[user.id, user.display_name], ...[...data.goals.teams.values()].map((team) => [team.id, team.name] as [string, string])]);
 
   async function changeTeam(teamId: string) {
     try {
       await setUserTeam(user.id, teamId || null);
       const name = teamId ? data!.goals.teams.get(teamId)?.name : null;
-      toast(name ? `${user.display_name} er nå på ${name}.` : `${user.display_name} er tatt ut av laget.`);
+      toast(
+        name
+          ? t(`${user.display_name} er nå på ${name}.`, `${user.display_name} is now on ${name}.`)
+          : t(`${user.display_name} er tatt ut av laget.`, `${user.display_name} has been removed from the team.`),
+      );
       reload();
     } catch (e) {
-      toast(`Kunne ikke bytte lag: ${(e as Error).message}`, 'error');
+      toast(`${t('Kunne ikke bytte lag', "Couldn't change team")}: ${(e as Error).message}`, 'error');
     }
   }
 
@@ -204,14 +212,14 @@ export function PlayerPage() {
     setExporting(true);
     try {
       if (kind === 'days') {
-        exportDaysCsv(user.display_name, fromIso, todayIso, perDay.map((d) => ({ ...d, status: d.status ? STATUS_LABELS[d.status] : 'Pågår' })));
+        exportDaysCsv(user.display_name, fromIso, todayIso, perDay.map((d) => ({ ...d, status: d.status ? STATUS_LABELS[d.status] : t('Pågår', 'In progress') })));
       } else if (kind === 'meals') {
         await exportMealsCsv(user.id, user.display_name, fromIso, todayIso);
       } else {
         await exportAllDataJson(user.id, user.display_name);
       }
     } catch (e) {
-      toast(`Eksporten feilet: ${(e as Error).message}`, 'error');
+      toast(`${t('Eksporten feilet', 'The export failed')}: ${(e as Error).message}`, 'error');
     } finally {
       setExporting(false);
     }
@@ -219,25 +227,26 @@ export function PlayerPage() {
 
   async function deletePermanently() {
     const ok = await confirm({
-      title: `Slette ${user.display_name} permanent?`,
-      body:
-        'Kontoen og ALLE data slettes for godt: måltider, vann, mål og gjenkjenningshistorikk. ' +
-        'Dette kan ikke angres. Vurder å laste ned dataene først (knappen over), og bruk heller «Deaktiver» hvis personen kanskje kommer tilbake.',
-      confirmLabel: 'Slett permanent',
+      title: t(`Slette ${user.display_name} permanent?`, `Delete ${user.display_name} permanently?`),
+      body: t(
+        'Kontoen og ALLE data slettes for godt: måltider, vann, mål, målinger, notater og gjenkjenningshistorikk. Dette kan ikke angres. Vurder å laste ned dataene først (knappen over), og bruk heller «Deaktiver» hvis personen kanskje kommer tilbake.',
+        'The account and ALL data are deleted for good: meals, water, goals, measurements, notes and recognition history. This cannot be undone. Consider downloading the data first (the button above), and use “Deactivate” instead if the person might come back.',
+      ),
+      confirmLabel: t('Slett permanent', 'Delete permanently'),
       danger: true,
       requireText: user.display_name,
     });
     if (!ok) return;
     const result = await deleteAccount(user.id);
-    if (result.error) return toast(`Kunne ikke slette: ${result.error}`, 'error');
-    toast(`${user.display_name} og alle tilhørende data er slettet.`);
+    if (result.error) return toast(`${t('Kunne ikke slette', "Couldn't delete")}: ${result.error}`, 'error');
+    toast(t(`${user.display_name} og alle tilhørende data er slettet.`, `${user.display_name} and all their data have been deleted.`));
     navigate('/users');
   }
 
   return (
     <div className="stack-lg">
       <Link to="/" className="row muted" style={{ gap: 6 }}>
-        <ArrowLeft size={15} /> Oversikt
+        <ArrowLeft size={15} /> {t('Oversikt', 'Overview')}
       </Link>
 
       <PageHeader
@@ -248,16 +257,16 @@ export function PlayerPage() {
               {user.display_name}
               <span className="row" style={{ gap: 8, marginTop: 6 }}>
                 <span className="pill">{ROLE_LABELS[user.role]}</span>
-                <span className={`pill ${user.is_active ? 'ok' : 'off'}`}>{user.is_active ? 'Aktiv' : 'Deaktivert'}</span>
+                <span className={`pill ${user.is_active ? 'ok' : 'off'}`}>{user.is_active ? t('Aktiv', 'Active') : t('Deaktivert', 'Deactivated')}</span>
                 <select
                   value={user.team_id ?? ''}
                   onChange={(e) => void changeTeam(e.target.value)}
-                  aria-label="Lag"
+                  aria-label={t('Lag', 'Team')}
                   style={{ padding: '2px 8px', fontSize: 12, borderRadius: 999 }}>
-                  <option value="">Uten lag</option>
-                  {[...data.goals.teams.values()].map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
+                  <option value="">{t('Uten lag', 'No team')}</option>
+                  {[...data.goals.teams.values()].map((team) => (
+                    <option key={team.id} value={team.id}>
+                      {team.name}
                     </option>
                   ))}
                 </select>
@@ -269,14 +278,14 @@ export function PlayerPage() {
           <div className="stack" style={{ gap: 2, textAlign: 'right' }}>
             <span className="muted">{data.account?.email ?? ''}</span>
             <span className="faint small">
-              Sist innlogget {data.account?.last_sign_in_at ? formatDateTime(data.account.last_sign_in_at) : 'aldri'}
+              {t('Sist innlogget', 'Last signed in')} {data.account?.last_sign_in_at ? formatDateTime(data.account.last_sign_in_at) : t('aldri', 'never')}
             </span>
             <span className="faint small">
-              Opprettet {new Date(user.created_at).toLocaleDateString('nb-NO')}
-              {created?.actor_name ? ` av ${created.actor_name}` : ''}
+              {t('Opprettet', 'Created')} {new Date(user.created_at).toLocaleDateString(locale())}
+              {created?.actor_name ? ` ${t('av', 'by')} ${created.actor_name}` : ''}
             </span>
             <Link to="/users" className="small">
-              Rediger konto under Brukere
+              {t('Rediger konto under Brukere', 'Edit the account under Users')}
             </Link>
           </div>
         }
@@ -286,46 +295,60 @@ export function PlayerPage() {
       <div className="row spread">
         <div className="row">
           <Segmented
-            label="Periode"
+            label={t('Periode', 'Period')}
             value={range}
             onChange={setRange}
-            options={RANGES.map((r) => ({ value: r, label: `${r} dager` }))}
+            options={RANGES.map((r) => ({ value: r, label: `${r} ${t('dager', 'days')}` }))}
           />
           <span className="faint small">
-            {longDay(fromIso)} – i dag {loading ? '· oppdaterer…' : ''}
+            {longDay(fromIso)} – {t('i dag', 'today')} {loading ? `· ${t('oppdaterer…', 'updating…')}` : ''}
           </span>
         </div>
         <div className="row" style={{ gap: 8 }}>
           <button className="small" disabled={exporting} onClick={() => void runExport('days')}>
-            <Download size={13} /> Dager (CSV)
+            <Download size={13} /> {t('Dager (CSV)', 'Days (CSV)')}
           </button>
           <button className="small" disabled={exporting} onClick={() => void runExport('meals')}>
-            <Download size={13} /> Måltider (CSV)
+            <Download size={13} /> {t('Måltider (CSV)', 'Meals (CSV)')}
           </button>
         </div>
       </div>
 
       <div className="kpi-row">
         <StatTile
-          label="Snitt energi per logget dag"
+          label={t('Snitt energi per logget dag', 'Average energy per logged day')}
           value={formatNumber(avg((s) => s.kcal))}
           unit="kcal"
-          sub={`Mål ${goals.goal_kcal.toLocaleString('nb-NO')} kcal`}
+          sub={`${t('Mål', 'Goal')} ${goals.goal_kcal.toLocaleString(locale())} kcal`}
         />
-        <StatTile label="Snitt vann per dag" value={formatNumber(avgWaterAll)} unit="ml" sub={`Mål ${goals.goal_water_ml.toLocaleString('nb-NO')} ml`} />
-        <StatTile label="Dager logget" value={logged.length} unit={`av ${complete.length}`} sub="Hele dager (i dag ikke med)" />
-        <StatTile label="Dager med nådd mål" value={complete.filter((d) => d.status === 'green').length} unit={`av ${complete.length}`} />
+        <StatTile
+          label={t('Snitt vann per dag', 'Average water per day')}
+          value={formatNumber(avgWaterAll)}
+          unit="ml"
+          sub={`${t('Mål', 'Goal')} ${goals.goal_water_ml.toLocaleString(locale())} ml`}
+        />
+        <StatTile
+          label={t('Dager logget', 'Days logged')}
+          value={logged.length}
+          unit={`${t('av', 'of')} ${complete.length}`}
+          sub={t('Hele dager (i dag ikke med)', 'Whole days (today not included)')}
+        />
+        <StatTile
+          label={t('Dager med nådd mål', 'Days with goal reached')}
+          value={complete.filter((d) => d.status === 'green').length}
+          unit={`${t('av', 'of')} ${complete.length}`}
+        />
       </div>
 
       <div className="two-col">
         <div className="stack-lg">
           <section className="card">
             <div className="card-header">
-              <h2>Energi per dag</h2>
-              <span className="faint small">kcal · klikk en dag for detaljer</span>
+              <h2>{t('Energi per dag', 'Energy per day')}</h2>
+              <span className="faint small">{t('kcal · klikk en dag for detaljer', 'kcal · click a day for details')}</span>
             </div>
             <ColumnChart
-              ariaLabel="Energi per dag i kcal"
+              ariaLabel={t('Energi per dag i kcal', 'Energy per day in kcal')}
               data={chartData((s) => s.kcal)}
               unit="kcal"
               color="var(--series-kcal)"
@@ -337,11 +360,11 @@ export function PlayerPage() {
           </section>
           <section className="card">
             <div className="card-header">
-              <h2>Vann per dag</h2>
+              <h2>{t('Vann per dag', 'Water per day')}</h2>
               <span className="faint small">ml</span>
             </div>
             <ColumnChart
-              ariaLabel="Vann per dag i milliliter"
+              ariaLabel={t('Vann per dag i milliliter', 'Water per day in millilitres')}
               data={chartData((s) => s.water_ml)}
               unit="ml"
               color="var(--series-water)"
@@ -366,8 +389,8 @@ export function PlayerPage() {
           />
           <section className="card">
             <div className="card-header">
-              <h2>Måloppnåelse</h2>
-              <span className="faint small">Energi + vann mot mål</span>
+              <h2>{t('Måloppnåelse', 'Goal achievement')}</h2>
+              <span className="faint small">{t('Energi + vann mot mål', 'Energy + water vs goal')}</span>
             </div>
             <StatusStrip
               days={perDay.map((d) => ({ key: d.day, title: longDay(d.day), status: d.status }))}
@@ -376,7 +399,10 @@ export function PlayerPage() {
               showLegend
             />
             <p className="faint small" style={{ margin: '12px 0 0' }}>
-              Én rute per dag, eldst til venstre. I dag (åpen rute) telles først når dagen er over.
+              {t(
+                'Én rute per dag, eldst til venstre. I dag (åpen rute) telles først når dagen er over.',
+                'One square per day, oldest on the left. Today (open square) counts once the day is over.',
+              )}
             </p>
           </section>
         </div>
@@ -386,11 +412,11 @@ export function PlayerPage() {
       <section className="card">
         <div className="card-header">
           <div className="row" style={{ gap: 6 }}>
-            <button className="small ghost" onClick={() => shiftDay(-1)} aria-label="Forrige dag">
+            <button className="small ghost" onClick={() => shiftDay(-1)} aria-label={t('Forrige dag', 'Previous day')}>
               <ChevronLeft size={16} />
             </button>
-            <h2 style={{ minWidth: 190, textAlign: 'center' }}>{selectedDay === todayIso ? 'I dag' : longDay(selectedDay)}</h2>
-            <button className="small ghost" onClick={() => shiftDay(1)} disabled={selectedDay >= todayIso} aria-label="Neste dag">
+            <h2 style={{ minWidth: 190, textAlign: 'center' }}>{selectedDay === todayIso ? t('I dag', 'Today') : longDay(selectedDay)}</h2>
+            <button className="small ghost" onClick={() => shiftDay(1)} disabled={selectedDay >= todayIso} aria-label={t('Neste dag', 'Next day')}>
               <ChevronRight size={16} />
             </button>
           </div>
@@ -401,54 +427,60 @@ export function PlayerPage() {
 
         <div className="grid-3">
           <div className="stack" style={{ gap: 12 }}>
-            <Meter label="Energi" value={sel?.kcal ?? 0} goal={goals.goal_kcal} unit="kcal" color="var(--series-kcal)" />
+            <Meter label={t('Energi', 'Energy')} value={sel?.kcal ?? 0} goal={goals.goal_kcal} unit="kcal" color="var(--series-kcal)" />
             <Meter label="Protein" value={sel?.protein_g ?? 0} goal={goals.goal_protein_g} unit="g" color="var(--text-2)" />
-            <Meter label="Karbohydrater" value={sel?.carbs_g ?? 0} goal={goals.goal_carbs_g} unit="g" color="var(--text-2)" />
-            <Meter label="Fett" value={sel?.fat_g ?? 0} goal={goals.goal_fat_g} unit="g" color="var(--text-2)" />
+            <Meter label={t('Karbohydrater', 'Carbohydrates')} value={sel?.carbs_g ?? 0} goal={goals.goal_carbs_g} unit="g" color="var(--text-2)" />
+            <Meter label={t('Fett', 'Fat')} value={sel?.fat_g ?? 0} goal={goals.goal_fat_g} unit="g" color="var(--text-2)" />
             <div className="row" style={{ gap: 8, marginTop: 4 }}>
               <Droplet size={15} color="var(--series-water)" />
               <div style={{ flex: 1 }}>
-                <Meter label="Vann" value={sel?.water_ml ?? 0} goal={goals.goal_water_ml} unit="ml" color="var(--series-water)" />
+                <Meter label={t('Vann', 'Water')} value={sel?.water_ml ?? 0} goal={goals.goal_water_ml} unit="ml" color="var(--series-water)" />
               </div>
             </div>
           </div>
 
           <div style={{ gridColumn: 'span 2', minWidth: 0 }}>
-            {dayMeals === null ? <p className="muted">Laster måltider…</p> : <DayMealsTable meals={dayMeals} onChanged={reload} />}
+            {dayMeals === null ? <p className="muted">{t('Laster måltider…', 'Loading meals…')}</p> : <DayMealsTable meals={dayMeals} onChanged={reload} />}
           </div>
         </div>
       </section>
 
+      {/* ---- Weight/height and notes (coach dashboard sketch) ---- */}
+      <div className="two-col" style={{ gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)' }}>
+        <MeasurementsCard key={`m:${user.id}`} userId={user.id} playerName={user.display_name} />
+        <NotesCard key={`n:${user.id}`} userId={user.id} />
+      </div>
+
       {/* ---- Table view: every number behind the charts ---- */}
       <section className="card flush">
         <div style={{ padding: '16px 20px 4px' }}>
-          <h2>Dag for dag</h2>
+          <h2>{t('Dag for dag', 'Day by day')}</h2>
         </div>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Dag</th>
+                <th>{t('Dag', 'Day')}</th>
                 <th>Status</th>
-                <th className="num">Måltider</th>
+                <th className="num">{t('Måltider', 'Meals')}</th>
                 <th className="num">kcal</th>
                 <th className="num">Protein (g)</th>
-                <th className="num">Karbo (g)</th>
-                <th className="num">Fett (g)</th>
-                <th className="num">Vann (ml)</th>
+                <th className="num">{t('Karbo (g)', 'Carbs (g)')}</th>
+                <th className="num">{t('Fett (g)', 'Fat (g)')}</th>
+                <th className="num">{t('Vann (ml)', 'Water (ml)')}</th>
               </tr>
             </thead>
             <tbody>
               {[...perDay].reverse().map(({ day, s, status }) => (
                 <tr key={day} className={`clickable ${day === selectedDay ? 'selected' : ''}`} onClick={() => setSelectedDay(day)}>
-                  <td>{day === todayIso ? 'I dag' : longDay(day)}</td>
-                  <td>{status ? <StatusLabel status={status} /> : <span className="faint small">Pågår</span>}</td>
+                  <td>{day === todayIso ? t('I dag', 'Today') : longDay(day)}</td>
+                  <td>{status ? <StatusLabel status={status} /> : <span className="faint small">{t('Pågår', 'In progress')}</span>}</td>
                   <td className="num">{s?.meals ?? 0}</td>
                   <td className="num">{formatNumber(s?.kcal ?? 0)}</td>
                   <td className="num">{formatNumber(s?.protein_g ?? 0)}</td>
                   <td className="num">{formatNumber(s?.carbs_g ?? 0)}</td>
                   <td className="num">{formatNumber(s?.fat_g ?? 0)}</td>
-                  <td className="num">{(s?.water_ml ?? 0).toLocaleString('nb-NO')}</td>
+                  <td className="num">{(s?.water_ml ?? 0).toLocaleString(locale())}</td>
                 </tr>
               ))}
             </tbody>
@@ -459,9 +491,9 @@ export function PlayerPage() {
       {/* ---- Recent changes about this player ---- */}
       <section className="card flush">
         <div className="row spread" style={{ padding: '16px 20px 4px' }}>
-          <h2>Endringer</h2>
+          <h2>{t('Endringer', 'Changes')}</h2>
           <Link to="/log" className="small">
-            Hele endringsloggen
+            {t('Hele endringsloggen', 'The whole change log')}
           </Link>
         </div>
         <ChangeList entries={data.changes} names={names} />
@@ -469,32 +501,38 @@ export function PlayerPage() {
 
       {/* ---- GDPR: access + erasure ---- */}
       <section className="card stack" style={{ borderColor: 'rgba(248, 113, 113, 0.35)' }}>
-        <h2>Personvern</h2>
+        <h2>{t('Personvern', 'Privacy')}</h2>
         <div className="row spread">
           <div>
-            <strong className="small">Last ned alle data</strong>
+            <strong className="small">{t('Last ned alle data', 'Download all data')}</strong>
             <p className="faint small" style={{ margin: '2px 0 0' }}>
-              Alt vi lagrer om {user.display_name}, som én fil (innsynsrett). Bilder lagres aldri.
+              {t(
+                `Alt vi lagrer om ${user.display_name}, som én fil (innsynsrett). Bilder lagres aldri.`,
+                `Everything we store about ${user.display_name}, as one file (right of access). Photos are never stored.`,
+              )}
             </p>
           </div>
           <button className="small" disabled={exporting} onClick={() => void runExport('all')}>
-            <FileJson size={13} /> Last ned (JSON)
+            <FileJson size={13} /> {t('Last ned (JSON)', 'Download (JSON)')}
           </button>
         </div>
         <div className="row spread" style={{ borderTop: '1px solid var(--raised)', paddingTop: 12 }}>
           <div>
-            <strong className="small">Slett permanent</strong>
+            <strong className="small">{t('Slett permanent', 'Delete permanently')}</strong>
             <p className="faint small" style={{ margin: '2px 0 0' }}>
-              Sletter kontoen og alle data for godt (retten til sletting). Kan ikke angres.
+              {t(
+                'Sletter kontoen og alle data for godt (retten til sletting). Kan ikke angres.',
+                'Deletes the account and all data for good (right to erasure). Cannot be undone.',
+              )}
             </p>
           </div>
           {/* You can't delete your own account (the server refuses too). */}
           <button
             className="small danger"
             disabled={user.id === me?.id}
-            title={user.id === me?.id ? 'Du kan ikke slette din egen konto' : undefined}
+            title={user.id === me?.id ? t('Du kan ikke slette din egen konto', "You can't delete your own account") : undefined}
             onClick={() => void deletePermanently()}>
-            <Trash2 size={13} /> Slett permanent
+            <Trash2 size={13} /> {t('Slett permanent', 'Delete permanently')}
           </button>
         </div>
       </section>

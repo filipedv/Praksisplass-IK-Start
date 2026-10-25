@@ -11,6 +11,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { addMonths, formatDayDate, formatMonthYear, isSameMonth, isToday, startOfDay, toISODate } from '@/lib/dates';
 import { colors, font, spacing } from '@/lib/theme';
+import { useI18n } from '@/lib/i18n';
 
 type HeaderProps = {
   selectedDate: Date;
@@ -21,14 +22,15 @@ type HeaderProps = {
 };
 
 export function DateHeader({ selectedDate, calendarOpen, onPrevDay, onNextDay, onToggleCalendar }: HeaderProps) {
+  const { t, locale } = useI18n();
   const canGoNext = !isToday(selectedDate);
   return (
     <View style={styles.header}>
-      <Pressable style={styles.arrow} onPress={onPrevDay} accessibilityLabel="Forrige dag">
+      <Pressable style={styles.arrow} onPress={onPrevDay} accessibilityLabel={t('Forrige dag', 'Previous day')}>
         <Ionicons name="chevron-back" size={20} color={colors.iconSoft} />
       </Pressable>
-      <Pressable style={styles.dateButton} onPress={onToggleCalendar} accessibilityLabel="Velg dato">
-        <Text style={styles.dateText}>{formatDayDate(selectedDate)}</Text>
+      <Pressable style={styles.dateButton} onPress={onToggleCalendar} accessibilityLabel={t('Velg dato', 'Choose date')}>
+        <Text style={styles.dateText}>{formatDayDate(selectedDate, locale)}</Text>
         <Ionicons name={calendarOpen ? 'chevron-up' : 'chevron-down'} size={14} color={colors.muted} />
       </Pressable>
       {/* Keep the space when hidden so the date stays centred. */}
@@ -36,7 +38,7 @@ export function DateHeader({ selectedDate, calendarOpen, onPrevDay, onNextDay, o
         style={[styles.arrow, !canGoNext && { opacity: 0 }]}
         onPress={onNextDay}
         disabled={!canGoNext}
-        accessibilityLabel="Neste dag">
+        accessibilityLabel={t('Neste dag', 'Next day')}>
         <Ionicons name="chevron-forward" size={20} color={colors.iconSoft} />
       </Pressable>
     </View>
@@ -50,9 +52,11 @@ type CalendarProps = {
   onSelectDate: (date: Date) => void;
 };
 
-const WEEKDAYS = ['Ma', 'Ti', 'On', 'To', 'Fr', 'Lø', 'Sø'];
+// Weeks start on Monday (Norwegian and British calendars).
+const WEEKDAYS = { nb: ['Ma', 'Ti', 'On', 'To', 'Fr', 'Lø', 'Sø'], en: ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'] };
 
 export function MonthCalendar({ viewMonth, selectedDate, onChangeMonth, onSelectDate }: CalendarProps) {
+  const { t, lang, locale } = useI18n();
   const today = startOfDay(new Date());
   const canGoNextMonth = !isSameMonth(viewMonth, today);
 
@@ -73,22 +77,22 @@ export function MonthCalendar({ viewMonth, selectedDate, onChangeMonth, onSelect
   return (
     <View style={styles.calendar}>
       <View style={styles.monthRow}>
-        <Pressable style={styles.monthArrow} onPress={() => onChangeMonth(addMonths(viewMonth, -1))} accessibilityLabel="Forrige måned">
+        <Pressable style={styles.monthArrow} onPress={() => onChangeMonth(addMonths(viewMonth, -1))} accessibilityLabel={t('Forrige måned', 'Previous month')}>
           <Ionicons name="chevron-back" size={18} color={colors.iconSoft} />
         </Pressable>
-        <Text style={styles.monthText}>{formatMonthYear(viewMonth)}</Text>
+        <Text style={styles.monthText}>{formatMonthYear(viewMonth, locale)}</Text>
         <Pressable
           style={[styles.monthArrow, !canGoNextMonth && { opacity: 0 }]}
           onPress={() => onChangeMonth(addMonths(viewMonth, 1))}
           disabled={!canGoNextMonth}
-          accessibilityLabel="Neste måned">
+          accessibilityLabel={t('Neste måned', 'Next month')}>
           <Ionicons name="chevron-forward" size={18} color={colors.iconSoft} />
         </Pressable>
       </View>
 
       <View style={styles.grid}>
-        {WEEKDAYS.map((w) => (
-          <Text key={w} style={[styles.cell, styles.weekday]}>
+        {WEEKDAYS[lang].map((w, i) => (
+          <Text key={i} style={[styles.cell, styles.weekday]}>
             {w}
           </Text>
         ))}
@@ -104,7 +108,7 @@ export function MonthCalendar({ viewMonth, selectedDate, onChangeMonth, onSelect
                 disabled={future}
                 onPress={() => onSelectDate(date)}
                 style={[styles.day, selected && styles.daySelected]}
-                accessibilityLabel={date.toLocaleDateString('nb-NO')}>
+                accessibilityLabel={date.toLocaleDateString(locale)}>
                 <Text
                   style={[
                     styles.dayText,

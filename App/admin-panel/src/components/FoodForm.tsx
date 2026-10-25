@@ -4,6 +4,7 @@
 import { useState, type FormEvent } from 'react';
 
 import { NUTRIENTS, type Food, type NutrientKey, type Nutrition, type Portion } from '../lib/types';
+import { t } from '../lib/i18n';
 
 /** What the form produces — the database fills in id, source and created_at. */
 export type FoodDraft = Pick<Food, 'name_nb' | 'name_en' | 'search_keywords' | 'nutrition' | 'portions'>;
@@ -37,24 +38,24 @@ export function FoodForm({ initial, submitLabel, onSubmit, onCancel, onDelete }:
     setError(null);
 
     // ---- Validate and convert ----
-    if (!nameNb.trim()) return setError('Norsk navn er påkrevd.');
+    if (!nameNb.trim()) return setError(t('Norsk navn er påkrevd.', 'Norwegian name is required.'));
 
     const nutrition: Nutrition = {};
     for (const { key, label } of NUTRIENTS) {
       const raw = nutrients[key].trim().replace(',', '.'); // accept "1,5"
       if (raw === '') continue; // missing value
       const value = Number(raw);
-      if (!Number.isFinite(value) || value < 0) return setError(`${label}: må være et tall ≥ 0.`);
+      if (!Number.isFinite(value) || value < 0) return setError(`${label}: ${t('må være et tall ≥ 0.', 'must be a number ≥ 0.')}`);
       nutrition[key] = value;
     }
-    if (nutrition.energy_kcal === undefined) return setError('Energi (kcal) er påkrevd.');
+    if (nutrition.energy_kcal === undefined) return setError(t('Energi (kcal) er påkrevd.', 'Energy (kcal) is required.'));
 
     const cleanPortions: Portion[] = [];
     for (const p of portions) {
       if (!p.name.trim() && !p.grams.trim()) continue; // empty row
       const grams = Number(p.grams.replace(',', '.'));
       if (!p.name.trim() || !Number.isFinite(grams) || grams <= 0) {
-        return setError('Hver porsjon trenger et navn og et antall gram > 0.');
+        return setError(t('Hver porsjon trenger et navn og et antall gram > 0.', 'Each portion needs a name and a number of grams > 0.'));
       }
       cleanPortions.push({ name: p.name.trim(), grams });
     }
@@ -77,19 +78,19 @@ export function FoodForm({ initial, submitLabel, onSubmit, onCancel, onDelete }:
   return (
     <form className="stack" onSubmit={handleSubmit}>
       <label>
-        Norsk navn *
+        {t('Norsk navn *', 'Norwegian name *')}
         <input value={nameNb} onChange={(e) => setNameNb(e.target.value)} required />
       </label>
       <label>
-        Engelsk navn
-        <input value={nameEn} onChange={(e) => setNameEn(e.target.value)} placeholder="f.eks. chicken breast" />
+        {t('Engelsk navn', 'English name')}
+        <input value={nameEn} onChange={(e) => setNameEn(e.target.value)} placeholder={t('f.eks. chicken breast', 'e.g. chicken breast')} />
       </label>
       <label>
-        Søkeord (kommaseparert)
-        <input value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="f.eks. kyllingbryst, filet" />
+        {t('Søkeord (kommaseparert)', 'Search words (comma-separated)')}
+        <input value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder={t('f.eks. kyllingbryst, filet', 'e.g. kyllingbryst, filet')} />
       </label>
 
-      <strong>Næringsinnhold per 100 g</strong>
+      <strong>{t('Næringsinnhold per 100 g', 'Nutrition per 100 g')}</strong>
       <div className="grid-2">
         {NUTRIENTS.map(({ key, label, unit }) => (
           <label key={key}>
@@ -103,44 +104,47 @@ export function FoodForm({ initial, submitLabel, onSubmit, onCancel, onDelete }:
         ))}
       </div>
 
-      <strong>Porsjoner</strong>
+      <strong>{t('Porsjoner', 'Portions')}</strong>
       <p className="muted small" style={{ margin: 0 }}>
-        Den første porsjonen er standardmengden i appen og brukes til «≈ 1 porsjon».
+        {t(
+          'Den første porsjonen er standardmengden i appen og brukes til «≈ 1 porsjon».',
+          'The first portion is the default amount in the app and is used for “≈ 1 portion”. Portion names are shown to players in Norwegian.',
+        )}
       </p>
       {portions.map((p, i) => (
         <div key={i} className="row">
           <input
-            placeholder="navn, f.eks. porsjon"
+            placeholder={t('navn, f.eks. porsjon', 'name (Norwegian), e.g. porsjon')}
             value={p.name}
             onChange={(e) => setPortions(portions.map((q, j) => (j === i ? { ...q, name: e.target.value } : q)))}
           />
           <input
             style={{ width: 90 }}
             inputMode="decimal"
-            placeholder="gram"
+            placeholder={t('gram', 'grams')}
             value={p.grams}
             onChange={(e) => setPortions(portions.map((q, j) => (j === i ? { ...q, grams: e.target.value } : q)))}
           />
           <button type="button" onClick={() => setPortions(portions.filter((_, j) => j !== i))}>
-            Fjern
+            {t('Fjern', 'Remove')}
           </button>
         </div>
       ))}
       <button type="button" onClick={() => setPortions([...portions, { name: '', grams: '' }])}>
-        + Legg til porsjon
+        + {t('Legg til porsjon', 'Add portion')}
       </button>
 
       {error && <p className="error">{error}</p>}
       <div className="row">
         <button type="submit" className="primary" disabled={busy}>
-          {busy ? 'Lagrer…' : submitLabel}
+          {busy ? t('Lagrer…', 'Saving…') : submitLabel}
         </button>
         <button type="button" onClick={onCancel}>
-          Avbryt
+          {t('Avbryt', 'Cancel')}
         </button>
         {onDelete && (
           <button type="button" className="danger" onClick={onDelete} style={{ marginLeft: 'auto' }}>
-            Slett
+            {t('Slett', 'Delete')}
           </button>
         )}
       </div>

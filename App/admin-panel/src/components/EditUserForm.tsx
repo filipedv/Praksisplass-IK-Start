@@ -9,6 +9,7 @@ import { useState, type FormEvent } from 'react';
 import { generatePassword, updateAccount } from '../lib/admin-users';
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../lib/types';
+import { t } from '../lib/i18n';
 
 type Props = {
   user: Profile;
@@ -31,7 +32,7 @@ export function EditUserForm({ user, currentEmail, onSaved, onCancel }: Props) {
     const nameChanged = displayName.trim() !== user.display_name;
     const emailChanged = email.trim().toLowerCase() !== (currentEmail ?? '').toLowerCase();
     const passwordChanged = newPassword !== '';
-    if (!displayName.trim()) return setError('Navn kan ikke være tomt.');
+    if (!displayName.trim()) return setError(t('Navn kan ikke være tomt.', 'Name cannot be empty.'));
     if (!nameChanged && !emailChanged && !passwordChanged) return onCancel();
 
     setBusy(true);
@@ -43,7 +44,7 @@ export function EditUserForm({ user, currentEmail, onSaved, onCancel }: Props) {
         .select('id');
       if (nameError || !data?.length) {
         setBusy(false);
-        return setError(`Kunne ikke lagre navnet: ${nameError?.message ?? 'ingen tilgang'}`);
+        return setError(`${t('Kunne ikke lagre navnet', "Couldn't save the name")}: ${nameError?.message ?? t('ingen tilgang', 'no access')}`);
       }
     }
     if (emailChanged || passwordChanged) {
@@ -58,27 +59,34 @@ export function EditUserForm({ user, currentEmail, onSaved, onCancel }: Props) {
     }
     setBusy(false);
 
-    const done = [nameChanged && 'navn', emailChanged && 'e-post', passwordChanged && 'passord'].filter(Boolean);
+    const done = [nameChanged && t('navn', 'name'), emailChanged && t('e-post', 'email'), passwordChanged && t('passord', 'password')].filter(Boolean);
     onSaved(
-      `Lagret (${done.join(', ')}) for ${displayName.trim()}.` +
-        (passwordChanged ? ` Nytt passord: «${newPassword}» — gi det til personen på en trygg måte.` : ''),
+      t(`Lagret (${done.join(', ')}) for ${displayName.trim()}.`, `Saved (${done.join(', ')}) for ${displayName.trim()}.`) +
+        (passwordChanged
+          ? t(
+              ` Nytt passord: «${newPassword}» — gi det til personen på en trygg måte.`,
+              ` New password: “${newPassword}” — give it to the person in a safe way.`,
+            )
+          : ''),
     );
   }
 
   return (
     <form className="card stack" onSubmit={handleSubmit}>
-      <h2 style={{ margin: 0 }}>Rediger {user.display_name}</h2>
+      <h2 style={{ margin: 0 }}>
+        {t('Rediger', 'Edit')} {user.display_name}
+      </h2>
       <div className="grid-2">
         <label>
-          Navn
+          {t('Navn', 'Name')}
           <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} required autoFocus />
         </label>
         <label>
-          E-post
+          {t('E-post', 'Email')}
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="off" />
         </label>
         <label>
-          Nytt passord (la stå tomt for å beholde)
+          {t('Nytt passord (la stå tomt for å beholde)', 'New password (leave empty to keep)')}
           <div className="row" style={{ flexWrap: 'nowrap' }}>
             <input
               value={newPassword}
@@ -88,7 +96,7 @@ export function EditUserForm({ user, currentEmail, onSaved, onCancel }: Props) {
               style={{ flex: 1, fontFamily: 'ui-monospace, monospace' }}
             />
             <button type="button" onClick={() => setNewPassword(generatePassword())}>
-              Generer
+              {t('Generer', 'Generate')}
             </button>
           </div>
         </label>
@@ -96,10 +104,10 @@ export function EditUserForm({ user, currentEmail, onSaved, onCancel }: Props) {
       {error && <p className="error">{error}</p>}
       <div className="row">
         <button type="submit" className="primary" disabled={busy}>
-          {busy ? 'Lagrer…' : 'Lagre'}
+          {busy ? t('Lagrer…', 'Saving…') : t('Lagre', 'Save')}
         </button>
         <button type="button" onClick={onCancel}>
-          Avbryt
+          {t('Avbryt', 'Cancel')}
         </button>
       </div>
     </form>

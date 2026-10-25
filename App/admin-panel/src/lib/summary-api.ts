@@ -5,6 +5,7 @@
 import { toISODate } from './format';
 import { supabase } from './supabase';
 import type { Team } from './types';
+import { labels, t } from './i18n';
 
 /** One player's totals for one day (from daily_summary()). */
 export type DaySummary = {
@@ -27,12 +28,13 @@ export type Goals = {
   goal_water_ml: number;
 };
 
+// `get label()` = worked out each time it's read, so it follows the language.
 export const GOAL_FIELDS: { key: keyof Goals; label: string; unit: string }[] = [
-  { key: 'goal_kcal', label: 'Energi', unit: 'kcal' },
+  { key: 'goal_kcal', get label() { return t('Energi', 'Energy'); }, unit: 'kcal' },
   { key: 'goal_protein_g', label: 'Protein', unit: 'g' },
-  { key: 'goal_carbs_g', label: 'Karbohydrater', unit: 'g' },
-  { key: 'goal_fat_g', label: 'Fett', unit: 'g' },
-  { key: 'goal_water_ml', label: 'Vann', unit: 'ml' },
+  { key: 'goal_carbs_g', get label() { return t('Karbohydrater', 'Carbohydrates'); }, unit: 'g' },
+  { key: 'goal_fat_g', get label() { return t('Fett', 'Fat'); }, unit: 'g' },
+  { key: 'goal_water_ml', get label() { return t('Vann', 'Water'); }, unit: 'ml' },
 ];
 
 /** A player's OWN goals as stored — null = follows the club default. */
@@ -52,7 +54,7 @@ export function daysBetween(from: Date, to: Date): string[] {
 }
 
 export async function fetchDailySummary(from: string, to: string, userId?: string): Promise<DaySummary[]> {
-  const { data, error } = await supabase.rpc('daily_summary', { p_from: from, p_to: to, p_user_id: userId ?? null });
+  const { data, error } = await supabase.rpc('daily_summary', { p_from: from, p_to: to, p_user_id: userId });
   if (error) throw error;
   // numeric columns arrive as strings or numbers depending on size — normalise.
   return (data ?? []).map((r: DaySummary) => ({
@@ -102,7 +104,7 @@ export async function fetchAllGoals(): Promise<AllGoals> {
 }
 
 export type GoalSource = 'own' | 'team' | 'club';
-export const GOAL_SOURCE_LABELS: Record<GoalSource, string> = { own: 'Eget', team: 'Lag', club: 'Klubb' };
+export const GOAL_SOURCE_LABELS: Record<GoalSource, string> = labels({ own: ['Eget', 'Own'], team: ['Lag', 'Team'], club: ['Klubb', 'Club'] });
 
 /** Where a player's goal for one field comes from: own → team → club. */
 export function goalSource(key: keyof Goals, own: PlayerGoalsRow | undefined, team: Team | undefined): GoalSource {

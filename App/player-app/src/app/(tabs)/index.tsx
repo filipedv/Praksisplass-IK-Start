@@ -14,25 +14,27 @@
 // entry (foods, grams, nutrition, time) is saved.
 
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Attribution } from '@/components/Attribution';
 import { CameraCapture } from '@/components/CameraCapture';
+import { DateTimeField } from '@/components/DateTimeField';
 import { DraftItemRow, type DraftItem } from '@/components/DraftItemRow';
 import { FoodSearchModal } from '@/components/FoodSearchModal';
 import { ScreenHeader } from '@/components/ScreenHeader';
-import { toISODate } from '@/lib/dates';
+import { isToday, parseISODate, toISODate } from '@/lib/dates';
 import { colors, font, radius, spacing } from '@/lib/theme';
-import { saveMeal } from '@/meals/meals-api';
+import { fetchFoodsByIds, saveMeal } from '@/meals/meals-api';
 import { logRecognitionEvent, matchGuesses } from '@/nutrition/foods-api';
 import { defaultAmountGrams } from '@/nutrition/math';
 import type { Food } from '@/nutrition/types';
 import { activeRecognizer, recognizeFood } from '@/recognition';
 import { deleteLocalFile } from '@/recognition/compress-image';
+import { translate, useI18n } from '@/lib/i18n';
 
 type Phase = 'camera' | 'recognizing' | 'review' | 'saved';
 
@@ -43,11 +45,56 @@ const SAVED_PAUSE_MS = 900;
 let keyCounter = 0;
 const newKey = () => `item-${++keyCounter}`;
 
+/**
+ * Other screens can open Kamera with a meal already filled in:
+ *   ?prefill=[{"f":"<food id>","g":150}, …]  — "Logg igjen", "Søk i matvarer"
+ *   ?date=2026-10-14                          — "Legg til måltid" for a past day
+ * (Food ids and grams only — no personal data in the URL.)
+ */
+type PrefillItem = { f: string; g: number };
+
+/** Default time for a meal logged for another day: 12:00 that day. */
+function noonOf(dateIso: string): Date {
+  const d = parseISODate(dateIso);
+  d.setHours(12, 0, 0, 0);
+  return d;
+}
+
 export default function KameraScreen() {
+  const { t } = useI18n();
   const [phase, setPhase] = useState<Phase>('camera');
   const [items, setItems] = useState<DraftItem[]>([]);
   const [usedRecognizer, setUsedRecognizer] = useState(false);
   const [saving, setSaving] = useState(false);
+  // When the meal was eaten. Defaults to now; can be moved back in time.
+  const [eatenAt, setEatenAt] = useState(() => new Date());
+
+  // Opened with ?prefill / ?date from another screen? Build the draft, then
+  // clear the params so returning to Kamera later starts fresh.
+  const { prefill, date } = useLocalSearchParams<{ prefill?: string; date?: string }>();
+  useEffect(() => {
+    if (!prefill && !date) return;
+    let cancelled = false;
+    const wanted: PrefillItem[] = prefill ? (JSON.parse(prefill) as PrefillItem[]) : [];
+    fetchFoodsByIds(wanted.map((w) => w.f))
+      .then((foods) => {
+        if (cancelled) return;
+        setItems(
+          wanted
+            .filter((w) => foods.has(w.f))
+            .map((w) => ({ key: newKey(), food: foods.get(w.f)!, amountG: w.g, detectedLabel: null, storableId: null, confidence: null })),
+        );
+        setEatenAt(date && !isToday(parseISODate(date)) ? noonOf(date) : new Date());
+        setUsedRecognizer(false);
+        setPhase('review');
+        router.setParams({ prefill: undefined, date: undefined });
+      })
+      // translate(), not t: this runs later, outside drawing (and keeps the effect's inputs simple).
+      .catch(() => Alert.alert(translate('Kunne ikke hente matvarene', "Couldn't load the foods")));
+    return () => {
+      cancelled = true;
+    };
+  }, [prefill, date]);
 
   // Search sheet: `searchFor` is the key of the item being swapped, or 'new'
   // to add a new item. null = closed.
@@ -72,10 +119,14 @@ export default function KameraScreen() {
         })),
       );
       setUsedRecognizer(true);
+      setEatenAt(new Date());
       setPhase('review');
     } catch (e) {
       console.warn('Recognition failed', e);
-      Alert.alert('Noe gikk galt', 'Klarte ikke å gjenkjenne maten. Du kan legge til matvarer manuelt.');
+      Alert.alert(
+        t('Noe gikk galt', 'Something went wrong'),
+        t('Klarte ikke å gjenkjenne maten. Du kan legge til matvarer manuelt.', "Couldn't recognize the food. You can add foods by hand."),
+      );
       startManual();
     } finally {
       // Privacy by design: throw the photo away whatever happened.
@@ -86,6 +137,7 @@ export default function KameraScreen() {
   function startManual() {
     setItems([]);
     setUsedRecognizer(false);
+    setEatenAt(new Date());
     setPhase('review');
   }
 
@@ -98,17 +150,19 @@ export default function KameraScreen() {
     setItems((prev) => prev.filter((it) => it.key !== key));
   }
 
-  function handleFoodPicked(food: Food) {
+  // `usualAmount` is set when a "Nylig brukt" food was picked (my usual size).
+  function handleFoodPicked(food: Food, usualAmount?: number) {
+    const amountG = usualAmount ?? defaultAmountGrams(food);
     if (searchFor === 'new') {
       setItems((prev) => [
         ...prev,
         // detectedLabel null = "Lagt til manuelt"
-        { key: newKey(), food, amountG: defaultAmountGrams(food), detectedLabel: null, storableId: null, confidence: null },
+        { key: newKey(), food, amountG, detectedLabel: null, storableId: null, confidence: null },
       ]);
     } else if (searchFor) {
       // Swapping keeps the recognizer's label (useful for judging match
       // quality) but the confidence no longer applies to the new food.
-      updateItem(searchFor, { food, amountG: defaultAmountGrams(food), confidence: null });
+      updateItem(searchFor, { food, amountG, confidence: null });
     }
     setSearchFor(null);
   }
@@ -130,18 +184,19 @@ export default function KameraScreen() {
       await saveMeal(
         items.map((it) => ({ food_id: it.food!.id, amount_g: it.amountG, detected_label: it.storableId })),
         usedRecognizer ? activeRecognizer.id : null,
+        eatenAt,
       );
       setPhase('saved');
       setTimeout(() => {
         // Switch tab FIRST, then reset this screen once it's out of view —
         // resetting first would flash the camera back on just before leaving.
-        // Show TODAY in Dagsoversikt, even if it was left on an older day.
-        router.navigate({ pathname: '/today', params: { date: toISODate(new Date()) } });
+        // Show the day the meal was saved on (usually today).
+        router.navigate({ pathname: '/today', params: { date: toISODate(eatenAt) } });
         setTimeout(backToCamera, 400);
       }, SAVED_PAUSE_MS);
     } catch (e) {
       console.warn('Save failed', e);
-      Alert.alert('Kunne ikke lagre', 'Sjekk nettforbindelsen og prøv igjen.');
+      Alert.alert(t('Kunne ikke lagre', "Couldn't save"), t('Sjekk nettforbindelsen og prøv igjen.', 'Check your connection and try again.'));
     } finally {
       setSaving(false);
     }
@@ -166,10 +221,10 @@ export default function KameraScreen() {
     return (
       <PhaseFade>
         <SafeAreaView style={styles.container} edges={['top']}>
-          <ScreenHeader title="Analyserer" />
+          <ScreenHeader title={t('Analyserer', 'Analysing')} />
           <View style={styles.centered}>
             <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={styles.centeredText}>Kjenner igjen maten på bildet…</Text>
+            <Text style={styles.centeredText}>{t('Kjenner igjen maten på bildet…', 'Recognizing the food in the photo…')}</Text>
           </View>
         </SafeAreaView>
       </PhaseFade>
@@ -180,12 +235,12 @@ export default function KameraScreen() {
     return (
       <PhaseFade>
         <SafeAreaView style={styles.container} edges={['top']}>
-          <ScreenHeader title="Lagret" />
+          <ScreenHeader title={t('Lagret', 'Saved')} />
           <View style={styles.centered}>
             <View style={styles.savedCircle}>
               <Ionicons name="checkmark" size={24} color={colors.pill.green.text} />
             </View>
-            <Text style={styles.centeredText}>Data sendes til database…</Text>
+            <Text style={styles.centeredText}>{t('Data sendes til database…', 'Sending data to the database…')}</Text>
           </View>
         </SafeAreaView>
       </PhaseFade>
@@ -195,20 +250,33 @@ export default function KameraScreen() {
   return (
     <PhaseFade>
       <SafeAreaView style={styles.container} edges={['top']}>
-        <ScreenHeader title="Registrert mat" onBack={backToCamera} />
+        <ScreenHeader title={t('Registrert mat', 'Logged food')} onBack={backToCamera} />
 
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <Text style={styles.intro}>
             {usedRecognizer
-              ? 'Dette fant vi i bildet. Juster mengde eller fjern varer ved behov.'
-              : 'Legg til det du har spist.'}
+              ? t('Dette fant vi i bildet. Juster mengde eller fjern varer ved behov.', 'This is what we found in the photo. Adjust amounts or remove items if needed.')
+              : t('Legg til det du har spist.', 'Add what you have eaten.')}
           </Text>
+
+          {/* When was it eaten? Default now; can't be in the future. */}
+          <View style={styles.timeRow}>
+            <Ionicons name="time-outline" size={16} color={colors.muted} />
+            <Text style={styles.timeLabel}>{t('Tidspunkt', 'Time')}</Text>
+            <DateTimeField
+              mode="datetime"
+              value={eatenAt}
+              onChange={setEatenAt}
+              maximumDate={new Date()}
+              accessibilityLabel={t('Når ble måltidet spist', 'When the meal was eaten')}
+            />
+          </View>
 
           {/* The mock ignores the photo — say so, or testers think recognition is broken. */}
           {usedRecognizer && activeRecognizer.id === 'mock' && (
             <View style={styles.mockBanner}>
               <Text style={styles.mockBannerText}>
-                Testmodus: dette er eksempelmatvarer, ikke gjenkjent fra bildet ditt.
+                {t('Testmodus: dette er eksempelmatvarer, ikke gjenkjent fra bildet ditt.', 'Test mode: these are example foods, not recognized from your photo.')}
               </Text>
             </View>
           )}
@@ -223,14 +291,14 @@ export default function KameraScreen() {
             />
           ))}
 
-          {items.length === 0 && <Text style={styles.noItems}>Ingen varer igjen — legg til mat under.</Text>}
+          {items.length === 0 && <Text style={styles.noItems}>{t('Ingen varer igjen — legg til mat under.', 'No items left — add food below.')}</Text>}
 
           <Pressable style={styles.addButton} onPress={() => setSearchFor('new')}>
             <Ionicons name="add" size={14} color={colors.primary} />
-            <Text style={styles.addButtonText}>Legg til mat som ikke ble oppdaget</Text>
+            <Text style={styles.addButtonText}>{t('Legg til mat som ikke ble oppdaget', "Add food that wasn't detected")}</Text>
           </Pressable>
 
-          {!allMatched && <Text style={styles.hint}>Velg eller fjern matvarene som ikke ble funnet før du lagrer.</Text>}
+          {!allMatched && <Text style={styles.hint}>{t('Velg eller fjern matvarene som ikke ble funnet før du lagrer.', "Choose or remove the foods that weren't found before saving.")}</Text>}
 
           <Attribution recognizer={usedRecognizer ? activeRecognizer.attribution : null} showMatvaretabellen={false} />
         </ScrollView>
@@ -243,7 +311,7 @@ export default function KameraScreen() {
             ) : (
               <>
                 <Ionicons name="checkmark" size={16} color={canSave ? '#fff' : colors.muted} />
-                <Text style={[styles.saveButtonText, !canSave && { color: colors.muted }]}>Lagre måltid</Text>
+                <Text style={[styles.saveButtonText, !canSave && { color: colors.muted }]}>{t('Lagre måltid', 'Save meal')}</Text>
               </>
             )}
           </Pressable>
@@ -286,6 +354,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   scroll: { paddingHorizontal: spacing.lg, paddingBottom: spacing.sm, gap: spacing.sm },
+  timeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.background,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    minHeight: 48,
+  },
+  timeLabel: { flex: 1, fontSize: font.sm, color: colors.textBody },
   intro: { fontSize: font.xs, color: colors.muted, marginBottom: spacing.xs },
   mockBanner: { backgroundColor: colors.warningBg, borderRadius: radius.md, padding: spacing.md },
   mockBannerText: { color: colors.warning, fontSize: font.xs },

@@ -1,5 +1,6 @@
 // Teams (A-lag, G19 …). Only admins may write (RLS); everyone signed in may read.
 
+import { t } from './i18n';
 import { supabase } from './supabase';
 import type { Team } from './types';
 
@@ -30,5 +31,5 @@ export async function deleteTeam(id: string) {
 export async function setUserTeam(userId: string, teamId: string | null) {
   const { data, error } = await supabase.from('profiles').update({ team_id: teamId }).eq('id', userId).select('id');
   if (error) throw error;
-  if (!data?.length) throw new Error('ingen tilgang');
+  if (!data?.length) throw new Error(t('ingen tilgang', 'no access'));
 }

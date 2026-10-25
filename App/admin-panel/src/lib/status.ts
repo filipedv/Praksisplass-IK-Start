@@ -10,23 +10,31 @@
 // at 100 %. >= 85 % → green, >= 50 % → orange, otherwise red.
 // Colours are reserved for status and ALWAYS shown with an icon + label.
 
+import { t } from './i18n';
+
 export type Status = 'gray' | 'red' | 'orange' | 'green';
 
 /** Display order: worst → best, as in the sketch. */
 export const STATUS_ORDER: Status[] = ['gray', 'red', 'orange', 'green'];
 
+// `get` = worked out each time it's read, so the text follows the language.
 export const STATUS_LABELS: Record<Status, string> = {
-  gray: 'Ikke logget',
-  red: 'Langt fra målet',
-  orange: 'Nesten nådde målet',
-  green: 'Nådde målet',
+  get gray() { return t('Ikke logget', 'Not logged'); },
+  get red() { return t('Langt fra målet', 'Far from goal'); },
+  get orange() { return t('Nesten nådde målet', 'Almost reached goal'); },
+  get green() { return t('Nådde målet', 'Reached goal'); },
 };
 
 export const STATUS_EXPLANATIONS: Record<Status, string> = {
-  gray: 'Ingen registrering denne dagen — en oppfølgingssak, ikke nødvendigvis et ernæringsproblem.',
-  red: 'Logget, men langt unna ernærings- og væskemålet.',
-  orange: 'Kom et stykke på vei, men nådde ikke hele målet.',
-  green: 'Nådde både ernærings- og væskemålet for dagen.',
+  get gray() {
+    return t(
+      'Ingen registrering denne dagen — en oppfølgingssak, ikke nødvendigvis et ernæringsproblem.',
+      'Nothing logged this day — something to follow up, not necessarily a nutrition problem.',
+    );
+  },
+  get red() { return t('Logget, men langt unna ernærings- og væskemålet.', 'Logged, but far from the nutrition and fluid goals.'); },
+  get orange() { return t('Kom et stykke på vei, men nådde ikke hele målet.', 'Got part of the way, but did not reach the whole goal.'); },
+  get green() { return t('Nådde både ernærings- og væskemålet for dagen.', 'Reached both the nutrition and fluid goals for the day.'); },
 };
 
 /** CSS variable for each status (defined in index.css). */

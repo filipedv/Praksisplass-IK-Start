@@ -7,6 +7,7 @@
 import type { Session } from '@supabase/supabase-js';
 import { useEffect, useState, type PropsWithChildren } from 'react';
 
+import { t } from '../lib/i18n';
 import { supabase } from '../lib/supabase';
 import { PROFILE_COLUMNS, type Profile } from '../lib/types';
 
@@ -46,7 +47,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   async function signIn(email: string, password: string) {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return error ? 'Feil e-post eller passord.' : null;
+    return error ? t('Feil e-post eller passord.', 'Wrong email or password.') : null;
   }
 
   async function signOut() {

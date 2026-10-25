@@ -13,15 +13,25 @@ beginner-friendly code over clever code. Explain decisions when you make them.
   academy player or guardian may be onboarded** until the GDPR work is done:
   guardian consent flow, a DPIA (data protection impact assessment), and EU-region
   routing for the vision API call. Don't build features that assume real minors.
-- Built so far: the **player app** (camera → recognize → confirm/edit → save,
-  Dagsoversikt with date navigation + calendar, water tracking, meal detail,
-  Profil, Personvernnotater) and the **admin panel**:
-  - Oversikt: day picker, follow-up and data-quality flags, weekly trend, system status
-  - users, roles, accounts and teams
-  - the player page: goals, charts, meal corrections, exports, GDPR access/erasure
-  - foods and label links, "Hva spillerne valgte"
-  - the change log, club settings, ⌘K search
-  - a phone layout
+- Built so far: the **player app** and the **admin panel**.
+  - Player app:
+    - camera → recognize → confirm/edit → save, with a chosen time (log afterwards)
+    - "Nylig brukt" + "Logg igjen", quick portion buttons (½ / 1 / 2)
+    - Dagsoversikt with date navigation + calendar, goal progress, "+ Legg til
+      måltid denne dagen" on past days, and water tracking
+    - meal detail with editing (grams, remove/add food, time) and "Endret av administrator"
+    - Søk i matvarer, Innstillinger (daily meal reminders), Endre passord, Profil,
+      Profilinnstillinger (own weight/height), Personvernnotater
+    - "Neste kamp" card + food tips before/after matches and training (notifications)
+  - Admin panel:
+    - Oversikt: day picker, follow-up and data-quality flags ("Fulgt opp"), weekly trend, system status
+    - users, roles, accounts and teams
+    - Kamper og treninger: fixtures per team, reminders to players, template library
+    - the player page: goals, charts, meal corrections (grams, delete, add a food),
+      weight/height (charts, weigh-ins, history), private staff notes, exports, GDPR access/erasure
+    - foods and label links, "Hva spillerne valgte"
+    - the change log, club settings, ⌘K search
+    - a phone layout
 - Recognition runs on the **mock** by default. The FatSecret key currently lacks
   the `image-recognition` OAuth scope (it grants `basic premier barcode`), and
   FatSecret image recognition is a **14-day trial** — don't start it until we're
@@ -34,6 +44,8 @@ beginner-friendly code over clever code. Explain decisions when you make them.
 | `player-app/` | React Native + **Expo SDK 57** + TypeScript, Expo Router. Tested via **Expo Go**. Read `player-app/AGENTS.md` (Expo's own rules: use `npx expo install`, check versioned docs — Expo changes every SDK). |
 | `admin-panel/` | React + Vite + TypeScript + React Router 8 + lucide-react icons. Desk tool, plain CSS (dark, after the coach dashboard sketch), not mobile-optimised. |
 | `supabase/migrations/` | Schema, RLS, triggers, RPC functions. Apply with `npx supabase db push` (CLI is linked). |
+| `supabase/tests/` | Database tests: every migration applied to PGlite (Postgres in WASM) with a stub `auth` schema, then RLS and SQL functions tested as different users. `npm install` once, then `npm test`. Add tests here when you change SQL. |
+| `../.github/workflows/ci.yml` | (Repo root.) GitHub Actions on every PR: database tests, admin build + lint, player tsc + lint, proxy/seed tsc, `deno check`. Needs no secrets and touches no database. |
 | `supabase/functions/admin-users/` | Edge Function (Deno) for account management from the admin panel. Deploy: `npx supabase functions deploy admin-users --use-api`. Typecheck: `npx deno check --config deno.json index.ts` in its folder. |
 | `scripts/seed-foods/` | Downloads Matvaretabellen (`/api/nb` + `/api/en` foods.json) and upserts into `foods`. Uses the **secret** key — local only. |
 | `recognition-proxy/` | Small Express server that calls FatSecret (OAuth 2.0 + IP allow-list). Off by default. |
@@ -50,6 +62,10 @@ How to run everything: see `README.md`.
 - **Nutrition source of truth = Matvaretabellen** (Mattilsynet), cached in the
   `foods` table (2,121 foods, updates yearly). Credit it in the app. **Never use
   a vision API's own nutrition numbers.**
+- **Generated database types:** `src/lib/database.types.ts` in both apps
+  (`createClient<Database>`), made from the live schema. Run
+  `npm run gen:types` in **both** `player-app/` and `admin-panel/` after every
+  migration, and commit the result. Never edit them by hand.
 - Keys: `sb_publishable_…` in the apps (public by design), `sb_secret_…` only in
   `scripts/seed-foods/.env`. All `.env` files are git-ignored; each part has a
   committed `.env.example`.
@@ -168,6 +184,63 @@ How to run everything: see `README.md`.
   entries; only admins can read it. It logs changes by a logged-in user only,
   and for meals only when someone else (an admin) edits a person's meal.
   Players' own logging is not logged.
+- **Player meal editing** uses the same functions as the admin panel, plus
+  `add_meal_item(meal, food, grams)` (security invoker; nutrition computed
+  from `foods`, like `log_meal`). Players change the time by updating
+  `meals.eaten_at` directly (own-rows RLS).
+- `meals.admin_changed_at` — set by triggers (security definer) whenever
+  someone **other than the owner** adds/changes/deletes an item or changes
+  `eaten_at`/`recognizer`. Players can't read `audit_log`, so this is how the
+  app shows "Endret av administrator". The audit trigger on `meals` also
+  logs that stamp; the admin panel hides it (`visibleEntries()` in
+  `lib/audit-api.ts`). Admin inserts into `meal_items` are logged too
+  (`audit_meal_items_insert`).
+- `recent_foods(limit)` — the caller's own most-used foods of the last 90
+  days, with `times_used` and the median `typical_amount_g` ("Nylig brukt").
+- `followup_dismissals` — "Fulgt opp" on Oversikt, shared by all admins
+  (admin-only RLS). `item_key` = the follow-up item's id
+  (`logging:<user>`, `never:<user>`, `nutrition:<user>` expire after 7 days;
+  `item:…`, `day:…` and `weight:<user>:<latest weigh-in>` never expire).
+- `is_staff()` — active admin **or coach** (security definer, like
+  `is_admin()`). Used only by the two tables below so far; everything else is
+  still admin-only, and the admin panel still only lets admins in. Giving
+  coaches their own (limited) login is the coach-dashboard roadmap item.
+- `body_measurements` — weight and/or height per `measured_on` day, one row
+  per entry (several per day allowed, nothing overwritten). `entered_by` is
+  forced to the caller by a trigger. Players read all their own rows (also a
+  coach's weigh-ins), add their own, and change/delete only rows they
+  entered; staff do everything. Shown on the player page (charts + history)
+  and in the app's Profilinnstillinger. The "rapid weight change" flag
+  (±2 kg over 14–35 days, `detectWeightChange()` in
+  `admin-panel/src/lib/body-api.ts`) is a **placeholder threshold** — not
+  medical advice.
+- `player_notes` — short notes about a player, **staff only** (players
+  can't read them, not even their own). Only the author edits; the author or
+  an admin deletes. Included in the GDPR "all data" export (right of
+  access), deleted with the account. Not in the change log (author +
+  timestamps are on the row).
+- **Fixtures** (`…_fixtures.sql`): `fixtures` (match/training, start/end,
+  opponent, home/away, place) ↔ `fixture_teams` ↔ `teams`;
+  `fixture_reminders` = the reminders chosen for ONE fixture (a COPY of the
+  template text, or a custom one — template_id null), with `send_at` worked
+  out by a trigger (`reminder_send_at()`, Norwegian local time, DST-safe;
+  moving a fixture moves its reminders). `reminder_templates` = the club's
+  library (8 placeholder texts seeded; `default_selected` = ticked on new
+  fixtures). Timing anchors: `before_start` / `after_end` (minutes),
+  `day_before` / `same_day` (clock time). Texts may contain {lag}
+  {motstander} {tid} {dag} {sted}, filled in on the phone (same rules in
+  `admin-panel/src/lib/fixtures-api.ts` and `player-app/src/fixtures/fixtures.ts`
+  — keep them in sync). Staff (`is_staff()`) write; players read only their
+  own team's fixtures (`my_team_id()`). Save through `save_fixture()` (one
+  transaction, replaces teams + reminders).
+- **How fixture reminders reach players:** NOT push. The app fetches the next
+  14 days for the player's team on every open/foreground
+  (`useFixtureReminderSync` in `app/_layout.tsx`) and schedules LOCAL
+  notifications (ids `fixture-<id>`, max 50 — iOS allows 64). Meal reminders
+  use ids `meal-<key>`; never call `cancelAllScheduledNotificationsAsync`
+  except on sign-out. Limitation: a fixture added after a player's last app
+  open isn't scheduled until they open the app again. Real push would need
+  a development build, stored push tokens and a server job.
 - `update_meal_item_amount(item, grams)` rescales the saved nutrition
   snapshot proportionally. `delete_meal_item(item)` also deletes the meal if
   it's left empty. Both are security invoker (RLS decides who may).
@@ -230,8 +303,29 @@ How to run everything: see `README.md`.
 
 ## Conventions
 
-- **UI text in Norwegian (bokmål), code and comments in English.** Comment the
-  *why*; match the existing comment density.
+- **UI text in Norwegian (bokmål) AND English, code and comments in English.**
+  Comment the *why*; match the existing comment density.
+- **Every visible text is a pair, Norwegian first: `t('Lagre', 'Save')`.**
+  Norwegian is the default; the choice is per device (localStorage). Never
+  hard-code `'nb-NO'` — use the locale from the i18n module. Food and portion
+  names come from Matvaretabellen and stay Norwegian (common portion words are
+  translated by `portionName()` in the player app). Edge Function and SQL
+  error messages are not translated.
+  - **Admin panel** (`src/lib/i18n.ts`): import `t` / `locale()` anywhere,
+    also in `lib/` files. Switching language re-mounts the panel
+    (`key={language}` in `App.tsx`), so everything is drawn again. Constant
+    label lists must not be plain strings (they'd be frozen at start-up):
+    use `labels({ key: ['nb', 'en'] })` or a `get label()` getter.
+    Switch: sidebar footer and login page.
+  - **Player app** (`src/lib/i18n.ts`): in components use
+    `const { t, lang, locale } = useI18n()` — NOT a plain function, because
+    the React Compiler only redraws when a component's inputs change. Pass
+    `lang` / `locale` into helpers (`mealName(date, lang)`,
+    `formatDayDate(date, locale)`, `portionEquivalent(g, portions, lang)`).
+    Outside components (notifications, sign-in errors, callbacks inside
+    effects) use `translate(nb, en)`. Switch: Innstillinger → Språk and the
+    login screen; changing it reschedules the reminders (their text is fixed
+    when scheduled).
 - **Player look = the sketch.** Colours/sizes live in `player-app/src/lib/theme.ts`,
   mapped from the sketch's Tailwind classes (dark, slate + indigo `#4F46E5`).
   Use the shared `Card`, `Pill`, `MenuRow`, `SectionTitle`, `ScreenHeader`
@@ -245,6 +339,20 @@ How to run everything: see `README.md`.
   - the pull-to-refresh spinner appears only on an actual pull;
   - never blank a screen while loading;
   - guard against out-of-order responses.
+- **Prefilling Kamera:** other screens open Kamera's "Registrert mat" with
+  `router.navigate({ pathname: '/', params: { prefill, date? } })`, where
+  `prefill` = JSON `[{ f: foodId, g: grams }]` (ids + grams only, no
+  personal data). `date` = a past day → the meal is timed 12:00 that day.
+  Used by "Logg igjen", Søk i matvarer and "+ Legg til måltid denne dagen".
+- **Reminders** (`src/reminders/reminders.ts`): local daily notifications
+  with `expo-notifications` (work in Expo Go — no push server, no tokens).
+  Settings in localStorage; cancelled on sign-out.
+- **Player goals** (`src/goals/goals-api.ts`, `effective_goals()`) are shown
+  on Dagsoversikt. Fine for adults in the internal test; must follow the
+  age-based safeguarding rule before youth players join (Roadmap 4).
+- Shared player components: `AmountEditor` (− / grams / + and portion
+  chips; tap targets ≥ 36 px + hitSlop), `DateTimeField` (iOS compact picker,
+  Android dialogs), `FoodSearchModal` (shows "Nylig brukt" when empty).
 - Dagsoversikt's selected day lives in the URL (`/today?date=YYYY-MM-DD`). Days
   are the phone's **local** day (`src/lib/dates.ts`, DST-safe).
 - Pages fetch with a plain async function, and an effect applies the result
@@ -263,15 +371,18 @@ How to run everything: see `README.md`.
   goal (score ≥ 0.85 green, ≥ 0.5 orange). Status colours are reserved and
   ALWAYS shown with icon + label. Today has no status until the day is over.
   The Oversikt status bar uses **yesterday** (the last full day).
-- **Charts** are hand-built SVG (`ColumnChart`, `StatusStrip`), following the
+- **Charts** are hand-built SVG (`ColumnChart`, `StatusStrip`, `LineChart`), following the
   dataviz skill:
   - one series per chart, and never two y-axes
   - columns ≤ 24 px, 4 px rounded tops, 2 px gaps
   - the goal is a solid line with a direct label
   - hover and keyboard tooltips; dimmed (not blanked) while reloading
   - every chart has a table with the same numbers
-  - series colours `--series-kcal` (orange) and `--series-water` (blue) were
-    validated against the card surface with the skill's palette checker
+  - `LineChart` (weight/height): real time on x, y zoomed to the data,
+    2 px line, 8 px ringed markers, latest value labelled directly
+  - series colours `--series-kcal` (orange), `--series-water` (blue),
+    `--series-weight` (violet) and `--series-height` (teal) were validated
+    against the card surface with the skill's palette checker
 - Read the clock once per page (`useState(() => new Date())`), never in render.
 - Filters/sort/period are remembered per browser with `usePersistentState`
   (`src/lib/persist.ts`, localStorage, try/catch). Never store personal data there.
@@ -286,6 +397,7 @@ How to run everything: see `README.md`.
   Playwright (headless Chromium) screenshots of every page, account deleted after.
 
 ### Checks before calling something done
+- Database: `npm test` in `supabase/tests` (also runs in CI on every PR).
 - Player app: `npx tsc --noEmit`, `npx expo lint`, `npx expo-doctor`. To be sure
   it bundles, run `npx expo export --platform ios --platform android` (with dummy
   env vars if needed).
@@ -307,15 +419,17 @@ How to run everything: see `README.md`.
    build the Claude-vision adapter for comparison, and a script that runs a
    fixed set of ~30–50 test meal photos through both. Then start the 14-day
    trial and decide on match rate, accuracy on Norwegian meals, and price.
-2. **Søk i matvarer** page (portion/grams lookup outside the capture flow) — designed in the sketch.
-3. Sketch screens not built yet: Profilinnstillinger (weight/height/age),
-   Innstillinger (varsler, måleenhet), light mode + language toggle.
+2. Sketch screens not built yet: Profilinnstillinger (weight/height/age),
+   måleenhet, light mode + language toggle.
+3. Meal reminders are fixed daily times; smarter ones ("only if you haven't
+   logged lunch yet") would need a server or background task.
 4. **Club-code signup + age-based safeguarding**: date of birth decides whether
    numbers are shown (with coach override) — plus the real GDPR work listed above.
+   This must also cover weight/height (health data): who may enter and see it
+   for youth players, and whether youth players see their own weight trend.
 5. **Coach dashboard** (desktop) and **coach mobile** — designed in the sketches
    (follow-up list, per-player tracking and goals, weight/height graphs,
    allergy/critical info, emergency contacts, private notes).
 6. **Guardian role**: height registration, emergency-contact numbers (feeding the coach view).
 7. Admin: change-log retention (how long to keep entries) before real players
-   join; adding a food to a player's meal from the admin panel (only
-   correcting/deleting exists).
+   join.

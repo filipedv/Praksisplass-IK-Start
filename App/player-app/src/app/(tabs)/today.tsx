@@ -11,7 +11,10 @@
 //   - Coming back to the tab refreshes quietly; the spinner only appears when
 //     the user pulls down to refresh.
 //
-// Not built yet (designed in the sketch): the "Søk i matvarer" page.
+// Goals ("av 2800") come from effective_goals(): own → team → club.
+// SAFEGUARDING: fine for the adults in the internal test; before youth
+// players join, showing numbers must follow the age-based rule (see
+// src/goals/goals-api.ts).
 
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
@@ -21,27 +24,30 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useSession } from '@/auth/session-context';
 import { DateHeader, MonthCalendar } from '@/components/DateNavigation';
-import { NutritionTotals } from '@/components/NutritionTotals';
+import { NextFixtureCard } from '@/components/NextFixtureCard';
+import { NutritionTotals, type MacroGoals } from '@/components/NutritionTotals';
 import { Card, SectionTitle } from '@/components/ui';
 import { GlassRow } from '@/components/water';
+import { fetchMyGoals, getCachedGoals, type Goals } from '@/goals/goals-api';
 import { addDays, formatTime, isToday, parseISODate, startOfMonth, toISODate } from '@/lib/dates';
 import { colors, font, radius, spacing } from '@/lib/theme';
 import { mealName } from '@/meals/meal-name';
 import { fetchMealsForDay, getCachedMealsForDay, type Meal } from '@/meals/meals-api';
 import { formatNumber, sumNutrition } from '@/nutrition/math';
-import { fetchWaterForDay, fetchWaterGoal, getCachedWater, getCachedWaterGoal, sumWater } from '@/water/water-api';
+import { fetchWaterForDay, getCachedWater, sumWater } from '@/water/water-api';
+import { useI18n } from '@/lib/i18n';
 
-type DayData = { iso: string; meals: Meal[]; waterMl: number; waterGoal: number };
+type DayData = { iso: string; meals: Meal[]; waterMl: number; goals: Goals | undefined };
 
 /** Everything Dagsoversikt shows for one day, fetched in parallel. */
 async function loadDay(userId: string, day: Date): Promise<DayData> {
-  const [meals, water, waterGoal] = await Promise.all([
+  const [meals, water, goals] = await Promise.all([
     fetchMealsForDay(userId, day),
     fetchWaterForDay(userId, day),
-    fetchWaterGoal(),
+    fetchMyGoals().catch(() => getCachedGoals()), // goals are a nice-to-have; never fail the day for them
   ]);
   // .slice() copies before reversing, so the cached list isn't changed.
-  return { iso: toISODate(day), meals: meals.slice().reverse(), waterMl: sumWater(water), waterGoal };
+  return { iso: toISODate(day), meals: meals.slice().reverse(), waterMl: sumWater(water), goals };
 }
 
 /** The same thing from the cache, if we've loaded this day before. */
@@ -53,7 +59,7 @@ function cachedDay(userId: string, day: Date): DayData | null {
     iso: toISODate(day),
     meals: meals.slice().reverse(),
     waterMl: sumWater(water),
-    waterGoal: getCachedWaterGoal() ?? 2500,
+    goals: getCachedGoals(),
   };
 }
 
@@ -62,6 +68,7 @@ const animateLayout = () => LayoutAnimation.configureNext(LayoutAnimation.create
 
 export default function TodayScreen() {
   const { session } = useSession();
+  const { t, lang, locale } = useI18n();
   const userId = session?.user.id;
   const { date: dateParam } = useLocalSearchParams<{ date?: string }>();
   const selectedDate = parseISODate(dateParam);
@@ -70,7 +77,7 @@ export default function TodayScreen() {
   // `() => …` = only computed on the first render (a "lazy" initial value).
   const [data, setData] = useState<DayData | null>(() => (userId ? cachedDay(userId, selectedDate) : null));
   const [refreshing, setRefreshing] = useState(false); // only for pull-to-refresh
-  const [error, setError] = useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [calendarMonth, setCalendarMonth] = useState(() => startOfMonth(selectedDate));
 
@@ -85,10 +92,10 @@ export default function TodayScreen() {
       const result = await loadDay(userId, parseISODate(dateParam));
       if (latestRequest.current !== dateParam) return; // a newer day was requested meanwhile
       setData(result);
-      setError(null);
+      setLoadFailed(false);
     } catch (e) {
       console.warn('Load failed', e);
-      setError('Kunne ikke hente data for denne dagen.');
+      setLoadFailed(true);
     }
   }, [userId, dateParam]);
 
@@ -131,7 +138,15 @@ export default function TodayScreen() {
   const isStale = data?.iso !== selectedIso;
   const meals = data?.meals ?? [];
   const waterMl = data?.waterMl ?? 0;
-  const waterGoal = data?.waterGoal ?? 2500;
+  const goals = data?.goals;
+  const waterGoal = goals?.goal_water_ml ?? 2500;
+  const macroGoals: MacroGoals | undefined = goals && {
+    kcal: goals.goal_kcal,
+    protein_g: goals.goal_protein_g,
+    carbs_g: goals.goal_carbs_g,
+    fat_g: goals.goal_fat_g,
+  };
+  const isPastDay = !isToday(selectedDate);
   const dayTotals = sumNutrition(meals.flatMap((m) => m.meal_items.map((i) => i.nutrition)));
 
   return (
@@ -168,7 +183,7 @@ export default function TodayScreen() {
             closeCalendar();
             router.push({ pathname: '/water', params: { date: selectedIso } });
           }}
-          accessibilityLabel="Vann">
+          accessibilityLabel={t('Vann', 'Water')}>
           <View style={styles.waterLeft}>
             <Ionicons name="water-outline" size={18} color="#3B82F6" />
             <Text style={styles.waterText}>
@@ -178,17 +193,32 @@ export default function TodayScreen() {
           <GlassRow totalMl={waterMl} goalMl={waterGoal} size={20} />
         </Pressable>
 
+        {/* Next match/training for my team + its food tip (only on today's page) */}
+        {userId && !isPastDay && <NextFixtureCard userId={userId} />}
+
+        {/* Sketch: "Søk i matvarer" card */}
+        <Pressable
+          style={({ pressed }) => [styles.searchCard, pressed && styles.waterCardPressed]}
+          onPress={() => {
+            closeCalendar();
+            router.push('/search');
+          }}>
+          <Ionicons name="search" size={16} color={colors.muted} />
+          <Text style={styles.searchText}>{t('Søk i matvarer', 'Search foods')}</Text>
+          <Ionicons name="chevron-forward" size={14} color={colors.faint} />
+        </Pressable>
+
         <View>
-          <SectionTitle>Dagens oversikt</SectionTitle>
+          <SectionTitle>{t('Dagens oversikt', "Today's overview")}</SectionTitle>
           <Card style={styles.statsCard}>
-            <NutritionTotals nutrition={dayTotals} />
+            <NutritionTotals nutrition={dayTotals} goals={macroGoals} />
           </Card>
         </View>
 
         <View>
-          <SectionTitle>Måltider</SectionTitle>
-          {error ? (
-            <Text style={styles.error}>{error}</Text>
+          <SectionTitle>{t('Måltider', 'Meals')}</SectionTitle>
+          {loadFailed ? (
+            <Text style={styles.error}>{t('Kunne ikke hente data for denne dagen.', "Couldn't load data for this day.")}</Text>
           ) : (
             <Card>
               {meals.map((meal, index) => {
@@ -204,8 +234,9 @@ export default function TodayScreen() {
                     }}>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.mealName}>
-                        {mealName(eatenAt)} <Text style={styles.mealTime}>· {formatTime(eatenAt)}</Text>
+                        {mealName(eatenAt, lang)} <Text style={styles.mealTime}>· {formatTime(eatenAt, locale)}</Text>
                       </Text>
+                      {meal.admin_changed_at && <Text style={styles.adminMark}>{t('Endret av administrator', 'Changed by an administrator')}</Text>}
                       <Text style={styles.mealFoods}>{meal.meal_items.map((i) => i.food_name).join(', ')}</Text>
                     </View>
                     <Text style={styles.mealKcal}>{formatNumber(totals.energy_kcal)} kcal</Text>
@@ -214,9 +245,21 @@ export default function TodayScreen() {
               })}
               {/* Only say "no meals" once we actually know (not while loading). */}
               {meals.length === 0 && data && !isStale && (
-                <Text style={styles.empty}>Ingen måltider registrert denne dagen.</Text>
+                <Text style={styles.empty}>{t('Ingen måltider registrert denne dagen.', 'No meals logged this day.')}</Text>
               )}
             </Card>
+          )}
+          {/* Forgot to log? Add a meal to an earlier day (Kamera, timed 12:00 that day). */}
+          {isPastDay && (
+            <Pressable
+              style={styles.addPastButton}
+              onPress={() => {
+                closeCalendar();
+                router.navigate({ pathname: '/', params: { date: selectedIso } });
+              }}>
+              <Ionicons name="add" size={16} color={colors.primary} />
+              <Text style={styles.addPastText}>{t('Legg til måltid denne dagen', 'Add a meal to this day')}</Text>
+            </Pressable>
           )}
         </View>
       </ScrollView>
@@ -244,7 +287,33 @@ const styles = StyleSheet.create({
   waterCardPressed: { transform: [{ scale: 0.98 }], backgroundColor: colors.surfaceRaised },
   waterLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   waterText: { fontSize: font.sm, fontWeight: '500', color: colors.textBody },
+  searchCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.lg,
+    minHeight: 48,
+  },
+  searchText: { flex: 1, fontSize: font.sm, color: colors.mutedLight },
   statsCard: { padding: spacing.lg },
+  adminMark: { fontSize: 11, color: colors.warning, marginTop: 2 },
+  addPastButton: {
+    flexDirection: 'row',
+    gap: spacing.xs,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: spacing.md,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: colors.primaryBorder,
+    borderRadius: radius.md,
+    minHeight: 48,
+  },
+  addPastText: { color: colors.primary, fontWeight: '500', fontSize: font.sm },
   error: { color: colors.danger, fontSize: font.sm },
   mealRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, padding: 14 },
   divider: { borderTopWidth: 1, borderColor: colors.surfaceRaised },

@@ -1,5 +1,6 @@
 // Email + password login, styled like the sketch. There's no sign-up here on
 // purpose: for this internal test, accounts are created in the Supabase dashboard.
+// The language can be chosen here too (Norsk / English), before signing in.
 
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
@@ -16,9 +17,11 @@ import {
 
 import { useSession } from '@/auth/session-context';
 import { colors, font, radius, spacing } from '@/lib/theme';
+import { setLanguage, useI18n } from '@/lib/i18n';
 
 export default function LoginScreen() {
   const { signIn } = useSession();
+  const { t, lang } = useI18n();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -41,12 +44,12 @@ export default function LoginScreen() {
         <View style={styles.logo}>
           <Ionicons name="restaurant-outline" size={24} color="#fff" />
         </View>
-        <Text style={styles.title}>Logg inn</Text>
-        <Text style={styles.subtitle}>Fyll inn relevant innloggingsdata for å fortsette</Text>
+        <Text style={styles.title}>{t('Logg inn', 'Sign in')}</Text>
+        <Text style={styles.subtitle}>{t('Fyll inn relevant innloggingsdata for å fortsette', 'Enter your login details to continue')}</Text>
 
         <TextInput
           style={styles.input}
-          placeholder="E-post"
+          placeholder={t('E-post', 'Email')}
           placeholderTextColor={colors.muted}
           value={email}
           onChangeText={setEmail}
@@ -58,7 +61,7 @@ export default function LoginScreen() {
         />
         <TextInput
           style={styles.input}
-          placeholder="Passord"
+          placeholder={t('Passord', 'Password')}
           placeholderTextColor={colors.muted}
           value={password}
           onChangeText={setPassword}
@@ -71,8 +74,16 @@ export default function LoginScreen() {
         {error && <Text style={styles.error}>{error}</Text>}
 
         <Pressable style={[styles.button, disabled && styles.buttonDisabled]} onPress={handleLogin} disabled={disabled}>
-          {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Logg inn</Text>}
+          {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>{t('Logg inn', 'Sign in')}</Text>}
         </Pressable>
+
+        <View style={styles.languages}>
+          {(['nb', 'en'] as const).map((l) => (
+            <Pressable key={l} onPress={() => setLanguage(l)} hitSlop={10} accessibilityState={{ selected: lang === l }}>
+              <Text style={[styles.language, lang === l && styles.languageActive]}>{l === 'nb' ? 'Norsk' : 'English'}</Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
     </KeyboardAvoidingView>
   );
@@ -111,4 +122,7 @@ const styles = StyleSheet.create({
   },
   buttonDisabled: { opacity: 0.5 },
   buttonText: { color: '#fff', fontSize: font.sm, fontWeight: '500' },
+  languages: { flexDirection: 'row', justifyContent: 'center', gap: spacing.xl, marginTop: spacing.lg },
+  language: { fontSize: font.xs, color: colors.muted },
+  languageActive: { color: colors.text, fontWeight: '600' },
 });
