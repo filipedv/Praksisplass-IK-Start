@@ -1,7 +1,8 @@
 // "Notater" on a player's page (coach dashboard sketch): short notes for
 // staff, e.g. "Nevnte lett kneplage — følg opp med fysio".
 //
-// Visible to admins and coaches only; the player never sees them in the app.
+// Visible to admins and the player's own coaches only; the player never sees
+// them in the app.
 // BUT the player has a right of access (GDPR), so notes are included in
 // "Last ned alle data" — write them as if the player could read them.
 // Only the author can edit a note; the author or an admin can delete it.
@@ -64,7 +65,7 @@ export function NotesCard({ userId }: { userId: string }) {
         <h2 className="row" style={{ gap: 8 }}>
           <NotebookPen size={16} className="muted" /> {t('Notater', 'Notes')}
         </h2>
-        <span className="faint small">{t('Kun synlig for administratorer og trenere', 'Only visible to administrators and coaches')}</span>
+        <span className="faint small">{t('Kun synlig for administratorer og spillerens trenere', "Only visible to administrators and the player's coaches")}</span>
       </div>
 
       <form

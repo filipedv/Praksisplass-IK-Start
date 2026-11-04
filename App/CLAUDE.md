@@ -13,13 +13,14 @@ beginner-friendly code over clever code. Explain decisions when you make them.
   academy player or guardian may be onboarded** until the GDPR work is done:
   guardian consent flow, a DPIA (data protection impact assessment), and EU-region
   routing for the vision API call. Don't build features that assume real minors.
-- Built so far: the **player app** and the **admin panel**.
+- Built so far: the **player app** and the **admin panel**, which is also the
+  **coach dashboard** (one panel, two menus — see "Coach role" below).
   - Player app:
     - camera → recognize → confirm/edit → save, with a chosen time (log afterwards)
     - "Nylig brukt" + "Logg igjen", quick portion buttons (½ / 1 / 2)
     - Dagsoversikt with date navigation + calendar, goal progress, "+ Legg til
       måltid denne dagen" on past days, and water tracking
-    - meal detail with editing (grams, remove/add food, time) and "Endret av administrator"
+    - meal detail with editing (grams, remove/add food, time) and "Endret av trener eller admin"
     - Søk i matvarer, Innstillinger (daily meal reminders), Endre passord, Profil,
       Profilinnstillinger (own weight/height), Personvernnotater
     - "Neste kamp" card + food tips before/after matches and training (notifications)
@@ -32,6 +33,9 @@ beginner-friendly code over clever code. Explain decisions when you make them.
     - foods and label links, "Hva spillerne valgte"
     - the change log, club settings, ⌘K search
     - a phone layout
+  - Coach dashboard (same panel, role `coach`): Oversikt, Spillere (players
+    per team), the player page, "Mine lag" (team goals) and Kamper og treninger — only for the teams an
+    admin assigned them under Lag
 - Recognition runs on the **mock** by default. The FatSecret key currently lacks
   the `image-recognition` OAuth scope (it grants `basic premier barcode`), and
   FatSecret image recognition is a **14-day trial** — don't start it until we're
@@ -160,7 +164,8 @@ How to run everything: see `README.md`.
 - `water_logs` — one row per tap (1–2000 ml).
 - `club_settings` — single row, `id = 1` (int on purpose). The club's DEFAULT
   goals — **placeholders, not advice**.
-- `player_goals` — optional per-player goals (admin-only write; player reads own).
+- `player_goals` — optional per-player goals (admins and the player's coaches
+  write; player reads own).
   Every column nullable: NULL = follow the club default. `updated_by/at` are set
   by a trigger. `goals_for(user)` returns the effective goals (own value, else
   club default; a caller who can't see the row just gets the defaults). The
@@ -172,17 +177,18 @@ How to run everything: see `README.md`.
 - `recognition_events` — labels / unmatched labels per photo.
 - `teams` — A-lag, G19 …, each with optional team goals (nullable = club
   default). `profiles.team_id` (on delete set null); only admins may change it
-  (trigger `protect_profile_team`). **Effective goals = own → team → club**:
+  (trigger `protect_profile_team`). A coach may change only the GOAL columns
+  of their own teams (trigger `protect_team_columns`). **Effective goals = own → team → club**:
   `effective_goals(user)` in SQL (the app's water goal uses it). The admin
   panel mirrors it with `effectiveGoals()` + `goalSource()`. `goals_for()` is
   the older two-layer version, kept so `main` keeps working; don't use it in
   new code.
 - `audit_log` — the change log, filled ONLY by the database (generic trigger
   `audit_row_change()` on profiles, player_goals, teams, food_aliases, foods,
-  club_settings, meals, meal_items) and by the `admin-users` function for
+  club_settings, meals, meal_items, coach_teams) and by the `admin-users` function for
   login accounts. There is no insert policy, so no app can write or fake
   entries; only admins can read it. It logs changes by a logged-in user only,
-  and for meals only when someone else (an admin) edits a person's meal.
+  and for meals only when someone else (an admin or coach) edits a person's meal.
   Players' own logging is not logged.
 - **Player meal editing** uses the same functions as the admin panel, plus
   `add_meal_item(meal, food, grams)` (security invoker; nutrition computed
@@ -191,31 +197,32 @@ How to run everything: see `README.md`.
 - `meals.admin_changed_at` — set by triggers (security definer) whenever
   someone **other than the owner** adds/changes/deletes an item or changes
   `eaten_at`/`recognizer`. Players can't read `audit_log`, so this is how the
-  app shows "Endret av administrator". The audit trigger on `meals` also
+  app shows "Endret av trener eller admin". The audit trigger on `meals` also
   logs that stamp; the admin panel hides it (`visibleEntries()` in
   `lib/audit-api.ts`). Admin inserts into `meal_items` are logged too
   (`audit_meal_items_insert`).
 - `recent_foods(limit)` — the caller's own most-used foods of the last 90
   days, with `times_used` and the median `typical_amount_g` ("Nylig brukt").
-- `followup_dismissals` — "Fulgt opp" on Oversikt, shared by all admins
-  (admin-only RLS). `item_key` = the follow-up item's id
+- `followup_dismissals` — "Fulgt opp" on Oversikt, shared by the admins and
+  the player's coaches. `subject_user_id` = whose item it is (the panel
+  sends it; a coach's RLS needs it). `item_key` = the follow-up item's id
   (`logging:<user>`, `never:<user>`, `nutrition:<user>` expire after 7 days;
   `item:…`, `day:…` and `weight:<user>:<latest weigh-in>` never expire).
 - `is_staff()` — active admin **or coach** (security definer, like
-  `is_admin()`). Used only by the two tables below so far; everything else is
-  still admin-only, and the admin panel still only lets admins in. Giving
-  coaches their own (limited) login is the coach-dashboard roadmap item.
+  `is_admin()`). Now only used for `reminder_templates` (the shared library)
+  and for staff reading each other's names. Player data uses
+  `can_manage_player()` instead (see "Coach role").
 - `body_measurements` — weight and/or height per `measured_on` day, one row
   per entry (several per day allowed, nothing overwritten). `entered_by` is
   forced to the caller by a trigger. Players read all their own rows (also a
   coach's weigh-ins), add their own, and change/delete only rows they
-  entered; staff do everything. Shown on the player page (charts + history)
+  entered; admins and the player's coaches do everything. Shown on the player page (charts + history)
   and in the app's Profilinnstillinger. The "rapid weight change" flag
   (±2 kg over 14–35 days, `detectWeightChange()` in
   `admin-panel/src/lib/body-api.ts`) is a **placeholder threshold** — not
   medical advice.
-- `player_notes` — short notes about a player, **staff only** (players
-  can't read them, not even their own). Only the author edits; the author or
+- `player_notes` — short notes about a player, **admins and the player's
+  coaches only** (players can't read them, not even their own). Only the author edits; the author or
   an admin deletes. Included in the GDPR "all data" export (right of
   access), deleted with the account. Not in the change log (author +
   timestamps are on the row).
@@ -230,9 +237,12 @@ How to run everything: see `README.md`.
   `day_before` / `same_day` (clock time). Texts may contain {lag}
   {motstander} {tid} {dag} {sted}, filled in on the phone (same rules in
   `admin-panel/src/lib/fixtures-api.ts` and `player-app/src/fixtures/fixtures.ts`
-  — keep them in sync). Staff (`is_staff()`) write; players read only their
-  own team's fixtures (`my_team_id()`). Save through `save_fixture()` (one
-  transaction, replaces teams + reminders).
+  — keep them in sync). Admins write all; a coach writes fixtures whose teams
+  are ALL theirs (`can_edit_fixture()`), and sees fixtures with at least one
+  of their teams; players read only their own team's fixtures
+  (`my_team_id()`). Save through `save_fixture()` (one transaction, replaces
+  teams + reminders; adds new teams before removing old ones, and gives
+  coaches a clear error for other teams).
 - **How fixture reminders reach players:** NOT push. The app fetches the next
   14 days for the player's team on every open/foreground
   (`useFixtureReminderSync` in `app/_layout.tsx`) and schedules LOCAL
@@ -251,6 +261,29 @@ How to run everything: see `README.md`.
   (cascade on food delete). Any signed-in user may read (the app needs it);
   only active admins may write. `created_by` is set by the trigger.
 
+### Coach role (`…_coach_role.sql`)
+- `coach_teams(coach_id, team_id)` — which teams a coach coaches. Admins
+  assign them on **Lag** (checkboxes in the team form); only users with role
+  `coach` can be assigned (trigger). A coach reads their own rows. Logged in
+  the change log.
+- Helpers (security definer, answer about the caller): `is_coach()`,
+  `coaches_team(team)`, and **`can_manage_player(user)`** = active admin, or
+  an active coach of the team this **active player** is on. Every coach
+  policy uses it: profiles (read), meals + meal_items (read + correct),
+  water_logs (read only), player_goals, body_measurements, player_notes,
+  followup_dismissals. Admin policies are unchanged.
+- A coach can NOT: see other teams' players or deactivated players, change
+  teams/roles/accounts, read the change log or recognition events, write
+  foods, links or club settings. Deactivating a coach, or changing their
+  role, removes access at once (assignments are kept).
+- Admin panel: `useAuth()` gives `isCoach` and `coachTeamIds`. `App.tsx`
+  routes a coach to Oversikt, `/players` (Spillere, one card per team),
+  `/users/:id`, `/teams` ("Mine lag") and `/fixtures` only; `Layout` and `CommandPalette` show the coach menu. On the
+  player page a coach doesn't get the team select, login details, change log
+  or GDPR section; Oversikt hides the role filter, recognition tile and
+  system status. These are UI choices — RLS is the real rule.
+- Tests: `supabase/tests/07-coach-role.test.ts`.
+
 ### Security: admin access is enforced by RLS, never by the client
 - **Both apps are untrusted** and use the public key. RLS is enabled on every table.
 - `is_admin()` and `is_active_user()` are `security definer` SQL functions that
@@ -266,9 +299,10 @@ How to run everything: see `README.md`.
   the first admin is made in the dashboard.
 - Deactivated users (including admins) fail `is_active_user()` / `is_admin()`
   and lose all access.
-- **Because admins can read everyone's rows, player-app queries always filter
-  `.eq('user_id', myId)` explicitly** — RLS alone would show an admin everyone's meals.
-- The admin panel's `isAdmin` only decides which screens to show. It also
+- **Because admins (and coaches) can read other people's rows, player-app
+  queries always filter `.eq('user_id', myId)` explicitly** — RLS alone would
+  show an admin everyone's meals.
+- The admin panel's `isAdmin` / `isCoach` only decide which screens to show. It also
   stops admins from changing their own role / deactivating themselves (UX
   guard against lockout — not a DB rule).
 - **Account management (`admin-users` Edge Function).** Creating logins and
@@ -427,9 +461,9 @@ How to run everything: see `README.md`.
    numbers are shown (with coach override) — plus the real GDPR work listed above.
    This must also cover weight/height (health data): who may enter and see it
    for youth players, and whether youth players see their own weight trend.
-5. **Coach dashboard** (desktop) and **coach mobile** — designed in the sketches
-   (follow-up list, per-player tracking and goals, weight/height graphs,
-   allergy/critical info, emergency contacts, private notes).
+5. **Coach mobile** (`trener-mobile-sketch.jsx`), and the coach sketch's
+   allergy/critical-info panel and emergency contacts (need guardian data).
+   The desktop coach dashboard is built (see "Coach role").
 6. **Guardian role**: height registration, emergency-contact numbers (feeding the coach view).
 7. Admin: change-log retention (how long to keep entries) before real players
    join.

@@ -236,7 +236,7 @@ export default function TodayScreen() {
                       <Text style={styles.mealName}>
                         {mealName(eatenAt, lang)} <Text style={styles.mealTime}>· {formatTime(eatenAt, locale)}</Text>
                       </Text>
-                      {meal.admin_changed_at && <Text style={styles.adminMark}>{t('Endret av administrator', 'Changed by an administrator')}</Text>}
+                      {meal.admin_changed_at && <Text style={styles.adminMark}>{t('Endret av trener eller admin', 'Changed by a coach or admin')}</Text>}
                       <Text style={styles.mealFoods}>{meal.meal_items.map((i) => i.food_name).join(', ')}</Text>
                     </View>
                     <Text style={styles.mealKcal}>{formatNumber(totals.energy_kcal)} kcal</Text>

@@ -4,10 +4,16 @@
 //   - Påminnelsesmaler: the reusable reminder texts (TemplatesCard)
 // Players see their team's fixtures in the app ("Neste kamp") and get the
 // reminders as notifications on their phone.
+//
+// A COACH sees the fixtures of their own teams and adds fixtures only for
+// them. A fixture that is also for a team they don't coach is shown, but
+// only an admin (or a coach of every team on it) may change it — the
+// database enforces the same rule.
 
 import { CalendarDays, Dumbbell, MapPin, Pencil, Plus, Trash2, Trophy } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
+import { useAuth } from '../auth/auth-context';
 import { FixtureForm } from '../components/FixtureForm';
 import { TemplatesCard } from '../components/TemplatesCard';
 import { PageHeader, Segmented } from '../components/ui';
@@ -36,6 +42,7 @@ type PageData = { requestKey: string; fixtures: Fixture[]; templates: ReminderTe
 
 export function FixturesPage() {
   const { toast, confirm } = useFeedback();
+  const { isCoach, coachTeamIds } = useAuth();
   const [tab, setTab] = usePersistentState<Tab>('fixtures-tab', 'upcoming');
   const [form, setForm] = useState<Form>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -79,6 +86,9 @@ export function FixturesPage() {
   if (!data) return <p className="muted">{t('Laster…', 'Loading…')}</p>;
   const loading = data.requestKey !== requestKey;
   const teamName = new Map(data.teams.map((team) => [team.id, team.name]));
+  // The teams this person may plan for: a coach their own, an admin all.
+  const myTeams = isCoach ? data.teams.filter((team) => coachTeamIds.includes(team.id)) : data.teams;
+  const canEdit = (f: Fixture) => !isCoach || f.team_ids.every((id) => coachTeamIds.includes(id));
   const en = getLanguage() === 'en';
 
   // Group by day for the list.
@@ -110,7 +120,7 @@ export function FixturesPage() {
           key={form.existing?.id ?? `new-${form.kind}`}
           kind={form.kind}
           existing={form.existing}
-          teams={data.teams}
+          teams={myTeams}
           templates={data.templates}
           todayIso={toISODate(now)}
           onSaved={() => {
@@ -182,14 +192,20 @@ export function FixturesPage() {
                           </div>
                         </div>
                       </div>
-                      <div className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
-                        <button className="small" onClick={() => setForm({ kind: f.kind, existing: f })}>
-                          <Pencil size={12} /> {t('Rediger', 'Edit')}
-                        </button>
-                        <button className="small danger" onClick={() => void remove(f)} aria-label={t('Slett', 'Delete')}>
-                          <Trash2 size={13} />
-                        </button>
-                      </div>
+                      {canEdit(f) ? (
+                        <div className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+                          <button className="small" onClick={() => setForm({ kind: f.kind, existing: f })}>
+                            <Pencil size={12} /> {t('Rediger', 'Edit')}
+                          </button>
+                          <button className="small danger" onClick={() => void remove(f)} aria-label={t('Slett', 'Delete')}>
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="faint small" style={{ maxWidth: 220, textAlign: 'right' }}>
+                          {t('Felles med et lag du ikke er trener for — en administrator kan endre den.', "Shared with a team you don't coach — an administrator can change it.")}
+                        </span>
+                      )}
                     </div>
 
                     {f.reminders.length === 0 ? (

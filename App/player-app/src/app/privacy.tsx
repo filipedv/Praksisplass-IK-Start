@@ -45,20 +45,20 @@ export default function PrivacyScreen() {
         </Section>
         <Section title={t('Hvem kan se dataene', 'Who can see the data')}>
           {t(
-            'Bare du og administratorer. Trenere kan i tillegg se vekt og høyde. Foresatte har ikke tilgang i denne testversjonen.',
-            'Only you and administrators. Coaches can also see weight and height. Guardians have no access in this test version.',
+            'Du, administratorer og trenerne for laget ditt. Trenerne ser måltider, vann, mål, vekt og høyde for spillerne på sine egne lag — ikke andre lag. Foresatte har ikke tilgang i denne testversjonen.',
+            "You, administrators and your team's coaches. Coaches see meals, water, goals, weight and height for the players on their own teams — not other teams. Guardians have no access in this test version.",
           )}
         </Section>
         <Section title={t('Notater fra trenere', 'Notes from coaches')}>
           {t(
-            'Trenere og administratorer kan skrive korte notater om deg, for eksempel «nevnte en kneplage — følg opp». Notatene vises ikke i appen, men du har rett til å se dem: be en administrator om å laste ned alle dataene dine.',
-            'Coaches and administrators can write short notes about you, for example “mentioned a knee problem — follow up”. The notes are not shown in the app, but you have the right to see them: ask an administrator to download all your data.',
+            'Trenerne dine og administratorer kan skrive korte notater om deg, for eksempel «nevnte en kneplage — følg opp». Notatene vises ikke i appen, men du har rett til å se dem: be en administrator om å laste ned alle dataene dine.',
+            'Your coaches and administrators can write short notes about you, for example “mentioned a knee problem — follow up”. The notes are not shown in the app, but you have the right to see them: ask an administrator to download all your data.',
           )}
         </Section>
-        <Section title={t('Når en administrator endrer noe', 'When an administrator changes something')}>
+        <Section title={t('Når en trener eller administrator endrer noe', 'When a coach or administrator changes something')}>
           {t(
-            'En administrator kan rette åpenbare feil i måltidene dine, for eksempel en mengde som er skrevet feil. Måltidet blir da merket «Endret av administrator», og hvem som endret hva lagres i en logg som bare administratorer kan se.',
-            'An administrator can correct obvious mistakes in your meals, for example a mistyped amount. The meal is then marked “Changed by an administrator”, and who changed what is saved in a log only administrators can see.',
+            'Treneren din eller en administrator kan rette åpenbare feil i måltidene dine, for eksempel en mengde som er skrevet feil. Måltidet blir da merket «Endret av trener eller admin», og hvem som endret hva lagres i en logg som bare administratorer kan se.',
+            'Your coach or an administrator can correct obvious mistakes in your meals, for example a mistyped amount. The meal is then marked “Changed by a coach or admin”, and who changed what is saved in a log only administrators can see.',
           )}
         </Section>
         <Section title={t('Hvor lenge vi lagrer', 'How long we keep it')}>

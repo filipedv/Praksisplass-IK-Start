@@ -1,7 +1,7 @@
 // Small formatting helpers. Norwegian uses a decimal comma (72,4), English
 // a decimal point (72.4) — formatNumber follows the chosen language.
 
-import { getLanguage, locale } from './i18n';
+import { getLanguage, locale, t } from './i18n';
 import type { NutrientKey, Nutrition } from './types';
 
 export function formatNumber(value: number | undefined | null, decimals = 0): string {
@@ -41,4 +41,14 @@ export function sumNutrition(list: Nutrition[]): Nutrition {
     }
   }
   return total;
+}
+
+/** "I dag 12:30", "I går", "For 4 dager siden", "Aldri" (relative to `todayIso`). */
+export function lastLoggedText(iso: string | null, todayIso: string): string {
+  if (!iso) return t('Aldri', 'Never');
+  const then = new Date(iso);
+  const days = Math.round((new Date(todayIso).getTime() - new Date(toISODate(then)).getTime()) / 86_400_000);
+  if (days === 0) return `${t('I dag', 'Today')} ${then.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' })}`;
+  if (days === 1) return t('I går', 'Yesterday');
+  return t(`For ${days} dager siden`, `${days} days ago`);
 }

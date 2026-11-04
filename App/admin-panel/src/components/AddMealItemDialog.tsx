@@ -1,7 +1,7 @@
 // "Legg til matvare" in a player's meal — for when the player forgot
 // something (e.g. the sauce). Step 1: search (same search_foods() as the
 // app). Step 2: grams. The database (add_meal_item) computes the nutrition
-// from `foods`, marks the meal "Endret av administrator" for the player and
+// from `foods`, marks the meal "Endret av trener eller admin" for the player and
 // writes the change log.
 
 import { ArrowLeft, Search } from 'lucide-react';

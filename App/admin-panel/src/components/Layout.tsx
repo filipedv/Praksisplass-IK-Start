@@ -4,6 +4,7 @@
 // On narrow screens (phones) the sidebar becomes a slide-in menu behind a
 // ☰ button in a top bar. ⌘K / Ctrl+K opens quick search from anywhere.
 // The sidebar footer has the language switch (Norsk / English).
+// Coaches get a shorter menu (their dashboard); admins get everything.
 
 import { Apple, CalendarDays, LayoutDashboard, LogOut, Menu, ScanSearch, Search, Settings, Shield, Users, UsersRound, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -15,7 +16,7 @@ import { CommandPalette } from './CommandPalette';
 import { Avatar, Segmented } from './ui';
 
 // A function (not a constant) so the labels follow the chosen language.
-const links = () => [
+const adminLinks = () => [
   { to: '/', label: t('Oversikt', 'Overview'), icon: LayoutDashboard, end: true },
   { to: '/users', label: t('Brukere', 'Users'), icon: Users },
   { to: '/teams', label: t('Lag', 'Teams'), icon: UsersRound },
@@ -26,11 +27,20 @@ const links = () => [
   { to: '/settings', label: t('Klubbinnstillinger', 'Club settings'), icon: Settings },
 ];
 
+const coachLinks = () => [
+  { to: '/', label: t('Oversikt', 'Overview'), icon: LayoutDashboard, end: true },
+  { to: '/players', label: t('Spillere', 'Players'), icon: Users },
+  { to: '/teams', label: t('Mine lag', 'My teams'), icon: UsersRound },
+  { to: '/fixtures', label: t('Kamper og treninger', 'Matches and training'), icon: CalendarDays },
+];
+
 // Show ⌘ on Macs and "Ctrl" elsewhere.
 const SHORTCUT = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘K' : 'Ctrl K';
 
 export function Layout() {
-  const { profile, signOut } = useAuth();
+  const { profile, isCoach, signOut } = useAuth();
+  const links = isCoach ? coachLinks : adminLinks;
+  const roleName = isCoach ? t('Trener', 'Coach') : t('Administrator', 'Administrator');
   const language = useLanguage();
   const [menuOpen, setMenuOpen] = useState(false); // phone menu
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -66,7 +76,7 @@ export function Layout() {
           <span className="brand-mark">IK</span>
           <span style={{ flex: 1 }}>
             <div className="brand-name">IK Start Ernæring</div>
-            <div className="brand-sub">Admin</div>
+            <div className="brand-sub">{isCoach ? t('Trener', 'Coach') : 'Admin'}</div>
           </span>
           <button className="ghost close-menu" onClick={() => setMenuOpen(false)} aria-label={t('Lukk meny', 'Close menu')}>
             <X size={18} />
@@ -88,7 +98,7 @@ export function Layout() {
                 <div className="small" style={{ fontWeight: 600 }}>
                   {profile.display_name}
                 </div>
-                <div className="faint small">{t('Administrator', 'Administrator')}</div>
+                <div className="faint small">{roleName}</div>
               </div>
             </div>
           )}

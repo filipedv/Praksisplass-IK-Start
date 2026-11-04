@@ -1,5 +1,6 @@
-// Reading the change log (audit_log). Only admins can read it (RLS), and
-// nobody can write it from an app — the database fills it by itself.
+// Reading the change log (audit_log). Only admins can read it (RLS) — also
+// changes made by coaches — and nobody can write it from an app: the
+// database fills it by itself.
 
 import { labels, t } from './i18n';
 import { supabase } from './supabase';
@@ -20,8 +21,8 @@ export async function fetchAudit(options: { subjectUserId?: string; limit?: numb
 
 /**
  * Bookkeeping fields we never show. `meals.admin_changed_at` is stamped by
- * the database when an admin edits a player's meal (so the player sees
- * "Endret av administrator"); the real change is logged as its own entry.
+ * the database when an admin or coach edits a player's meal (so the player
+ * sees "Endret av trener eller admin"); the real change is logged as its own entry.
  */
 const HIDDEN_FIELDS = new Set(['admin_changed_at']);
 
@@ -49,6 +50,7 @@ export const TABLE_LABELS: Record<string, string> = labels({
   club_settings: ['Klubbinnstillinger', 'Club settings'],
   meals: ['Måltid', 'Meal'],
   meal_items: ['Matvare i måltid', 'Food in meal'],
+  coach_teams: ['Trener for lag', 'Coach of team'],
 });
 
 export const ACTION_LABELS: Record<AuditEntry['action'], string> = labels({
@@ -63,6 +65,7 @@ export const FIELD_LABELS: Record<string, string> = labels({
   role: ['rolle', 'role'],
   is_active: ['aktiv', 'active'],
   team_id: ['lag', 'team'],
+  coach_id: ['trener', 'coach'],
   email: ['e-post', 'email'],
   password: ['passord', 'password'],
   goal_kcal: ['energimål', 'energy goal'],

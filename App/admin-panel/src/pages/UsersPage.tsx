@@ -22,19 +22,21 @@ import { listAccounts, type AccountInfo } from '../lib/admin-users';
 import { formatDateTime } from '../lib/format';
 import { usePersistentState } from '../lib/persist';
 import { supabase } from '../lib/supabase';
-import { listTeams, setUserTeam } from '../lib/teams-api';
+import { listCoachTeams, listTeams, setUserTeam } from '../lib/teams-api';
 import { ROLE_LABELS, type Profile, type Role, type Team, PROFILE_COLUMNS } from '../lib/types';
 import { t } from '../lib/i18n';
 
 /** All profiles (RLS lets admins see everyone's) + emails/last login from Auth. */
 async function fetchUsers() {
-  const [profiles, accounts, teams] = await Promise.all([
+  const [profiles, accounts, teams, coachTeams] = await Promise.all([
     supabase.from('profiles').select(PROFILE_COLUMNS).order('display_name'),
     listAccounts(),
     listTeams(),
+    listCoachTeams(),
   ]);
   return {
     teams,
+    coachTeams,
     users: (profiles.data ?? []) as Profile[],
     accounts: new Map((accounts.data ?? []).map((a) => [a.id, a])),
     error: profiles.error?.message ?? accounts.error,
@@ -49,6 +51,7 @@ export function UsersPage() {
   const [users, setUsers] = useState<Profile[] | null>(null);
   const [accounts, setAccounts] = useState<Map<string, AccountInfo>>(new Map());
   const [teams, setTeams] = useState<Team[]>([]);
+  const [coachTeams, setCoachTeams] = useState<{ coach_id: string; team_id: string }[]>([]);
   const [savingId, setSavingId] = useState<string | null>(null);
   // Which form is open: none, "new user", or editing one user (by id).
   const [form, setForm] = useState<{ kind: 'none' } | { kind: 'new' } | { kind: 'edit'; userId: string }>({ kind: 'none' });
@@ -72,6 +75,7 @@ export function UsersPage() {
       setUsers(result.users);
       setAccounts(result.accounts);
       setTeams(result.teams);
+      setCoachTeams(result.coachTeams);
     });
     return () => {
       cancelled = true;
@@ -172,6 +176,8 @@ export function UsersPage() {
           key={editing.id}
           user={editing}
           currentEmail={accounts.get(editing.id)?.email ?? null}
+          teams={teams}
+          coachedTeamIds={coachTeams.filter((c) => c.coach_id === editing.id).map((c) => c.team_id)}
           onSaved={formDone}
           onCancel={() => setForm({ kind: 'none' })}
         />
@@ -252,7 +258,14 @@ export function UsersPage() {
                         aria-label={`${t('Rolle for', 'Role for')} ${user.display_name}`}
                         onChange={(e) => {
                           const role = e.target.value as Role;
-                          void update(user, { role }, t(`${user.display_name} er nå ${ROLE_LABELS[role].toLowerCase()}.`, `${user.display_name} is now ${ROLE_LABELS[role].toLowerCase()}.`));
+                          void update(
+                            user,
+                            { role },
+                            t(`${user.display_name} er nå ${ROLE_LABELS[role].toLowerCase()}.`, `${user.display_name} is now ${ROLE_LABELS[role].toLowerCase()}.`) +
+                              (role === 'coach'
+                                ? t(' Velg lagene treneren skal ha med knappen i Lag-kolonnen.', ' Choose the coach’s teams with the button in the Team column.')
+                                : ''),
+                          );
                         }}>
                         {(Object.keys(ROLE_LABELS) as Role[]).map((role) => (
                           <option key={role} value={role}>
@@ -262,18 +275,34 @@ export function UsersPage() {
                       </select>
                     </td>
                     <td>
-                      <select
-                        value={user.team_id ?? ''}
-                        disabled={busy}
-                        aria-label={`${t('Lag for', 'Team for')} ${user.display_name}`}
-                        onChange={(e) => void changeTeam(user, e.target.value)}>
-                        <option value="">{t('Uten lag', 'No team')}</option>
-                        {teams.map((team) => (
-                          <option key={team.id} value={team.id}>
-                            {team.name}
-                          </option>
-                        ))}
-                      </select>
+                      {/* A coach isn't ON a team — they coach one or more (button opens "Trener for"). */}
+                      {user.role === 'coach' ? (
+                        <button
+                          className="small"
+                          disabled={busy}
+                          onClick={() => setForm({ kind: 'edit', userId: user.id })}
+                          title={t('Velg hvilke lag treneren har', 'Choose which teams the coach has')}>
+                          <Pencil size={12} />{' '}
+                          {coachTeams
+                            .filter((c) => c.coach_id === user.id)
+                            .map((c) => teams.find((team) => team.id === c.team_id)?.name)
+                            .filter(Boolean)
+                            .join(', ') || t('Velg lag', 'Choose teams')}
+                        </button>
+                      ) : (
+                        <select
+                          value={user.team_id ?? ''}
+                          disabled={busy}
+                          aria-label={`${t('Lag for', 'Team for')} ${user.display_name}`}
+                          onChange={(e) => void changeTeam(user, e.target.value)}>
+                          <option value="">{t('Uten lag', 'No team')}</option>
+                          {teams.map((team) => (
+                            <option key={team.id} value={team.id}>
+                              {team.name}
+                            </option>
+                          ))}
+                        </select>
+                      )}
                     </td>
                     <td>
                       <span className={`pill ${user.is_active ? 'ok' : 'off'}`}>{user.is_active ? t('Aktiv', 'Active') : t('Deaktivert', 'Deactivated')}</span>
@@ -310,8 +339,8 @@ export function UsersPage() {
       </section>
       <p className="faint small" style={{ margin: 0 }}>
         {t(
-          'Roller for trener og foresatt kan settes allerede nå, men de har ingen egne skjermer ennå.',
-          "Coach and guardian roles can already be set, but they don't have their own screens yet.",
+          'Trenere logger inn i dette panelet og får sitt eget dashbord for lagene de er trener for (velges under Lag). Foresatt-rollen kan settes, men har ingen egne skjermer ennå.',
+          'Coaches sign in to this panel and get their own dashboard for the teams they coach (chosen under Teams). The guardian role can be set, but has no screens of its own yet.',
         )}
       </p>
     </div>

@@ -1,8 +1,10 @@
-// Who is logged in, and their own profile (to know whether they're an admin).
+// Who is logged in, and their own profile (to know whether they're an admin
+// or a coach — and for a coach, which teams they coach).
 //
-// NOTE: `isAdmin` here only decides which SCREENS to show — it's a
-// convenience, not security. If a non-admin bypassed this check, the database
-// would still only return their own rows, because RLS checks the role itself.
+// NOTE: `isAdmin` / `isCoach` here only decide which SCREENS to show — a
+// convenience, not security. If someone bypassed this check, the database
+// would still only return what RLS allows: a coach only their own teams'
+// players, a player only their own rows.
 
 import type { Session } from '@supabase/supabase-js';
 import { useEffect, useState, type PropsWithChildren } from 'react';
@@ -13,9 +15,13 @@ import { PROFILE_COLUMNS, type Profile } from '../lib/types';
 
 import { AuthContext } from './auth-context';
 
+// One shared empty list, so screens don't see a "new" list on every render.
+const NO_TEAMS: string[] = [];
+
 export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [coachTeamIds, setCoachTeamIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -24,15 +30,17 @@ export function AuthProvider({ children }: PropsWithChildren) {
       setSession(newSession);
       if (!newSession) {
         setProfile(null);
+        setCoachTeamIds([]);
         setIsLoading(false);
         return;
       }
-      const { data } = await supabase
-        .from('profiles')
-        .select(PROFILE_COLUMNS)
-        .eq('id', newSession.user.id)
-        .maybeSingle();
+      const [{ data }, assignments] = await Promise.all([
+        supabase.from('profiles').select(PROFILE_COLUMNS).eq('id', newSession.user.id).maybeSingle(),
+        // Only a coach has rows here (RLS: a coach reads their own assignments).
+        supabase.from('coach_teams').select('team_id').eq('coach_id', newSession.user.id),
+      ]);
       setProfile(data);
+      setCoachTeamIds((assignments.data ?? []).map((a) => a.team_id));
       setIsLoading(false);
     }
 
@@ -55,8 +63,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
   }
 
   const isAdmin = profile?.role === 'admin' && profile.is_active;
+  const isCoach = profile?.role === 'coach' && profile.is_active;
 
   return (
-    <AuthContext value={{ session, profile, isAdmin, isLoading, signIn, signOut }}>{children}</AuthContext>
+    <AuthContext value={{ session, profile, isAdmin, isCoach, coachTeamIds: isCoach ? coachTeamIds : NO_TEAMS, isLoading, signIn, signOut }}>
+      {children}
+    </AuthContext>
   );
 }

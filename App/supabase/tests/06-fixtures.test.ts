@@ -20,6 +20,7 @@ describe('fixtures & reminders', () => {
     g19 = (await t.asOwner(`insert into teams (name) values ('G19') returning id`))[0].id;
     await t.asOwner('update profiles set team_id = $1 where id = $2', [aLag, anna]);
     await t.asOwner('update profiles set team_id = $1 where id = $2', [g19, bob]);
+    await t.asOwner('insert into coach_teams (coach_id, team_id) values ($1, $2)', [coach, aLag]); // coaches A-lag only
   });
 
   const save = (who: string, id: string | null, fixture: object, teams: string[], reminders: object[]) =>
