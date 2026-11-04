@@ -29,21 +29,21 @@ export default function TabLayout() {
         name="today"
         options={{
           title: t('Dagsoversikt', 'Daily overview'), // read out by screen readers
-          tabBarIcon: ({ color }) => <Ionicons name="restaurant-outline" size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="restaurant-outline" size={22} color={typeof color === 'string' ? color : undefined} />,
         }}
       />
       <Tabs.Screen
         name="index"
         options={{
           title: t('Kamera', 'Camera'),
-          tabBarIcon: ({ color }) => <Ionicons name="camera-outline" size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="camera-outline" size={22} color={typeof color === 'string' ? color : undefined} />,
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
           title: t('Profil', 'Profile'),
-          tabBarIcon: ({ color }) => <Ionicons name="person-outline" size={22} color={color} />,
+          tabBarIcon: ({ color }) => <Ionicons name="person-outline" size={22} color={typeof color === 'string' ? color : undefined} />,
         }}
       />
     </Tabs>

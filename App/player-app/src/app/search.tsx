@@ -110,7 +110,7 @@ export default function SearchScreen() {
             keyExtractor={(item) => item.id}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.list}
-            ListEmptyComponent={!loading && query.trim() ? <Text style={styles.empty}>{t('Ingen treff i Matvaretabellen.', 'No results in Matvaretabellen.')}</Text> : null}
+            ListEmptyComponent={!loading && query.trim() ? <Text style={styles.empty}>{t('Ingen treff i Matvaretabellen.', 'No results in Matvaretabellen.')}</Text> : undefined}
             renderItem={({ item }) => (
               <Pressable
                 style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
