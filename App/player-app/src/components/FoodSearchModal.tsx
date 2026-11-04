@@ -112,7 +112,7 @@ export function FoodSearchModal({ visible, initialQuery = '', onSelect, onClose 
           keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.list}
           ListEmptyComponent={
-            !loading && query.trim() ? <Text style={styles.empty}>{t('Ingen treff i Matvaretabellen.', 'No results in Matvaretabellen.')}</Text> : null
+            !loading && query.trim() ? <Text style={styles.empty}>{t('Ingen treff i Matvaretabellen.', 'No results in Matvaretabellen.')}</Text> : undefined
           }
           renderItem={({ item }) => {
             const isRecent = 'timesUsed' in item;

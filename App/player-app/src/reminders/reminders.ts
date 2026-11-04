@@ -13,6 +13,7 @@
 // be replaced without wiping the other.
 
 import * as Notifications from 'expo-notifications';
+import { AndroidImportance } from 'expo-notifications';
 import { Platform } from 'react-native';
 
 import { translate, type Language } from '@/lib/i18n';
@@ -71,7 +72,7 @@ export async function ensureAndroidChannel(): Promise<string | undefined> {
   if (Platform.OS !== 'android') return undefined;
   await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
     name: translate('Påminnelser', 'Reminders'),
-    importance: Notifications.AndroidImportance.DEFAULT,
+    importance: AndroidImportance.DEFAULT,
   });
   return CHANNEL_ID;
 }

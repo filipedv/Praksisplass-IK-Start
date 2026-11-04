@@ -41,7 +41,7 @@ beginner-friendly code over clever code. Explain decisions when you make them.
 
 | Folder | What |
 | --- | --- |
-| `player-app/` | React Native + **Expo SDK 57** + TypeScript, Expo Router. Tested via **Expo Go**. Read `player-app/AGENTS.md` (Expo's own rules: use `npx expo install`, check versioned docs — Expo changes every SDK). |
+| `player-app/` | React Native + **Expo SDK 58** + TypeScript, Expo Router. Tested via **Expo Go**. Read `player-app/AGENTS.md` (Expo's own rules: use `npx expo install`, check versioned docs — Expo changes every SDK). |
 | `admin-panel/` | React + Vite + TypeScript + React Router 8 + lucide-react icons. Desk tool, plain CSS (dark, after the coach dashboard sketch), not mobile-optimised. |
 | `supabase/migrations/` | Schema, RLS, triggers, RPC functions. Apply with `npx supabase db push` (CLI is linked). |
 | `supabase/tests/` | Database tests: every migration applied to PGlite (Postgres in WASM) with a stub `auth` schema, then RLS and SQL functions tested as different users. `npm install` once, then `npm test`. Add tests here when you change SQL. |
