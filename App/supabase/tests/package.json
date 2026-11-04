@@ -1,0 +1,14 @@
+{
+  "name": "db-tests",
+  "private": true,
+  "type": "module",
+  "description": "Security (RLS) and logic tests for supabase/migrations, run against PGlite (Postgres in WebAssembly). No network, no shared database.",
+  "scripts": {
+    "test": "node --test --test-reporter=spec *.test.ts"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.11",
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2"
+  }
+}

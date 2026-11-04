@@ -11,6 +11,7 @@
 // Every value here is also in the day table below the charts (table view).
 
 import { useEffect, useRef, useState } from 'react';
+import { locale, t } from '../lib/i18n';
 
 export type ColumnDatum = {
   key: string; // e.g. "2026-10-14"
@@ -78,7 +79,7 @@ export function ColumnChart({ data, unit, color, goal, height = 190, loading, se
   const labelEvery = Math.max(1, Math.ceil(data.length / Math.max(1, Math.floor(plotW / 44))));
 
   const hovered = hover !== null ? data[hover] : null;
-  const fmt = (v: number) => Math.round(v).toLocaleString('nb-NO');
+  const fmt = (v: number) => Math.round(v).toLocaleString(locale());
 
   return (
     <div ref={wrapRef} className={`chart ${loading ? 'loading' : ''}`}>
@@ -140,7 +141,7 @@ export function ColumnChart({ data, unit, color, goal, height = 190, loading, se
           <g pointerEvents="none">
             <line x1={PAD.left} x2={width - PAD.right} y1={y(goal)} y2={y(goal)} stroke="var(--text-2)" strokeWidth={1} />
             <text className="goal-label" x={width - PAD.right} y={y(goal) - 6} textAnchor="end">
-              Mål {fmt(goal)} {unit}
+              {t('Mål', 'Goal')} {fmt(goal)} {unit}
             </text>
           </g>
         )}
@@ -154,7 +155,7 @@ export function ColumnChart({ data, unit, color, goal, height = 190, loading, se
           <strong>
             {fmt(hovered.value)} {unit}
           </strong>
-          {goal ? <span className="muted">{Math.round((hovered.value / goal) * 100)} % av målet</span> : null}
+          {goal ? <span className="muted">{t(`${Math.round((hovered.value / goal) * 100)} % av målet`, `${Math.round((hovered.value / goal) * 100)}% of goal`)}</span> : null}
         </div>
       )}
     </div>

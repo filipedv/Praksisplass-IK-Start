@@ -1,13 +1,16 @@
 // Types mirroring the database tables (see supabase/migrations).
 // Keep in sync with player-app/src/nutrition/types.ts.
 
+import { t } from './i18n';
+
 export type Role = 'player' | 'coach' | 'guardian' | 'admin';
 
+// `get` = worked out each time it's read, so the text follows the language.
 export const ROLE_LABELS: Record<Role, string> = {
-  player: 'Spiller',
-  coach: 'Trener',
-  guardian: 'Foresatt',
-  admin: 'Administrator',
+  get player() { return t('Spiller', 'Player'); },
+  get coach() { return t('Trener', 'Coach'); },
+  get guardian() { return t('Foresatt', 'Guardian'); },
+  get admin() { return t('Administrator', 'Administrator'); },
 };
 
 export type Profile = {
@@ -61,21 +64,42 @@ export type NutrientKey =
 
 export type Nutrition = Partial<Record<NutrientKey, number>>;
 
-/** Display order + Norwegian labels for the nutrients we store (per 100 g). */
+/** Display order + labels for the nutrients we store (per 100 g). */
 export const NUTRIENTS: { key: NutrientKey; label: string; unit: string }[] = [
-  { key: 'energy_kcal', label: 'Energi', unit: 'kcal' },
-  { key: 'energy_kj', label: 'Energi', unit: 'kJ' },
+  { key: 'energy_kcal', get label() { return t('Energi', 'Energy'); }, unit: 'kcal' },
+  { key: 'energy_kj', get label() { return t('Energi', 'Energy'); }, unit: 'kJ' },
   { key: 'protein_g', label: 'Protein', unit: 'g' },
-  { key: 'fat_g', label: 'Fett', unit: 'g' },
-  { key: 'saturated_fat_g', label: 'Mettet fett', unit: 'g' },
-  { key: 'carbs_g', label: 'Karbohydrater', unit: 'g' },
-  { key: 'sugars_g', label: 'Sukkerarter', unit: 'g' },
-  { key: 'added_sugar_g', label: 'Tilsatt sukker', unit: 'g' },
-  { key: 'fiber_g', label: 'Kostfiber', unit: 'g' },
+  { key: 'fat_g', get label() { return t('Fett', 'Fat'); }, unit: 'g' },
+  { key: 'saturated_fat_g', get label() { return t('Mettet fett', 'Saturated fat'); }, unit: 'g' },
+  { key: 'carbs_g', get label() { return t('Karbohydrater', 'Carbohydrates'); }, unit: 'g' },
+  { key: 'sugars_g', get label() { return t('Sukkerarter', 'Sugars'); }, unit: 'g' },
+  { key: 'added_sugar_g', get label() { return t('Tilsatt sukker', 'Added sugar'); }, unit: 'g' },
+  { key: 'fiber_g', get label() { return t('Kostfiber', 'Fibre'); }, unit: 'g' },
   { key: 'salt_g', label: 'Salt', unit: 'g' },
 ];
 
 export type Portion = { name: string; grams: number };
+
+/** A row from search_foods() — like Food, without search_keywords, plus a 0–1 score. */
+export type SearchFood = Omit<Food, 'search_keywords'> & { score: number };
+
+/** Database JSON → our food shape (jsonb columns arrive as generic JSON). */
+export function toSearchFood(row: {
+  id: string;
+  source: string;
+  name_nb: string;
+  name_en: string | null;
+  nutrition: unknown;
+  portions: unknown;
+  score: number;
+}): SearchFood {
+  return {
+    ...row,
+    source: row.source as Food['source'],
+    nutrition: (row.nutrition ?? {}) as Nutrition,
+    portions: (row.portions ?? []) as Portion[],
+  };
+}
 
 export type Food = {
   id: string;
@@ -88,7 +112,7 @@ export type Food = {
 };
 
 export type MealItem = { id: string; food_name: string; amount_g: number; nutrition: Nutrition; detected_label: string | null };
-export type Meal = { id: string; eaten_at: string; recognizer: string | null; meal_items: MealItem[] };
+export type Meal = { id: string; eaten_at: string; recognizer: string | null; admin_changed_at: string | null; meal_items: MealItem[] };
 export type WaterLog = { id: string; amount_ml: number; logged_at: string };
 
 export type ClubSettings = {

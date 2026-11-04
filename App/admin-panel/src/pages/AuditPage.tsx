@@ -12,11 +12,12 @@ import { useEffect, useState } from 'react';
 import { ChangeList } from '../components/ChangeList';
 import { PageHeader } from '../components/ui';
 import { useFeedback } from '../feedback/feedback-context';
-import { ACTION_LABELS, FIELD_LABELS, TABLE_LABELS, fetchAudit, formatValue } from '../lib/audit-api';
+import { ACTION_LABELS, FIELD_LABELS, TABLE_LABELS, fetchAudit, formatValue, visibleEntries } from '../lib/audit-api';
 import { downloadFile, toCsv } from '../lib/download';
 import { usePersistentState } from '../lib/persist';
 import { supabase } from '../lib/supabase';
 import type { AuditEntry } from '../lib/types';
+import { locale, t } from '../lib/i18n';
 
 const PAGE_SIZE = 100;
 
@@ -43,11 +44,11 @@ export function AuditPage() {
         setNames(
           new Map([
             ...(profiles.data ?? []).map((p) => [p.id, p.display_name] as [string, string]),
-            ...(teams.data ?? []).map((t) => [t.id, t.name] as [string, string]),
+            ...(teams.data ?? []).map((team) => [team.id, team.name] as [string, string]),
           ]),
         );
       })
-      .catch((e) => !cancelled && toast(`Kunne ikke hente loggen: ${e.message}`, 'error'));
+      .catch((e) => !cancelled && toast(`${t('Kunne ikke hente loggen', "Couldn't load the log")}: ${e.message}`, 'error'));
     return () => {
       cancelled = true;
     };
@@ -62,14 +63,14 @@ export function AuditPage() {
       setEntries([...entries, ...more]);
       setHasMore(more.length === PAGE_SIZE);
     } catch (e) {
-      toast(`Kunne ikke hente flere: ${(e as Error).message}`, 'error');
+      toast(`${t('Kunne ikke hente flere', "Couldn't load more")}: ${(e as Error).message}`, 'error');
     }
   }
 
-  if (entries === null) return <p className="muted">Laster endringslogg…</p>;
+  if (entries === null) return <p className="muted">{t('Laster endringslogg…', 'Loading change log…')}</p>;
 
   const q = query.trim().toLowerCase();
-  const visible = entries.filter((e) => {
+  const visible = visibleEntries(entries).filter((e) => {
     if (tableFilter !== 'all' && e.table_name !== tableFilter) return false;
     if (!q) return true;
     const haystack = [e.actor_name, e.subject_user_id ? names.get(e.subject_user_id) : '', JSON.stringify(e.changes)]
@@ -80,30 +81,30 @@ export function AuditPage() {
 
   function exportCsv() {
     const csv = toCsv(visible, [
-      { header: 'Tid', value: (e) => new Date(e.at).toLocaleString('nb-NO') },
-      { header: 'Hvem', value: (e) => e.actor_name ?? '' },
-      { header: 'Handling', value: (e) => ACTION_LABELS[e.action] },
-      { header: 'Hva', value: (e) => TABLE_LABELS[e.table_name] ?? e.table_name },
-      { header: 'Gjelder', value: (e) => (e.subject_user_id ? (names.get(e.subject_user_id) ?? 'slettet bruker') : '') },
+      { header: t('Tid', 'Time'), value: (e) => new Date(e.at).toLocaleString(locale()) },
+      { header: t('Hvem', 'Who'), value: (e) => e.actor_name ?? '' },
+      { header: t('Handling', 'Action'), value: (e) => ACTION_LABELS[e.action] },
+      { header: t('Hva', 'What'), value: (e) => TABLE_LABELS[e.table_name] ?? e.table_name },
+      { header: t('Gjelder', 'Concerns'), value: (e) => (e.subject_user_id ? (names.get(e.subject_user_id) ?? t('slettet bruker', 'deleted user')) : '') },
       {
-        header: 'Endring',
+        header: t('Endring', 'Change'),
         value: (e) =>
           Object.entries(e.changes)
             .map(([f, [a, b]]) => `${FIELD_LABELS[f] ?? f}: ${formatValue(a, f)} → ${formatValue(b, f)}`)
             .join(', '),
       },
     ]);
-    downloadFile(`endringslogg_${new Date().toISOString().slice(0, 10)}.csv`, csv, 'csv');
+    downloadFile(`${t('endringslogg', 'change-log')}_${new Date().toISOString().slice(0, 10)}.csv`, csv, 'csv');
   }
 
   return (
     <div className="stack-lg">
       <PageHeader
-        title="Endringslogg"
-        subtitle="Hvem som endret hva — føres automatisk av databasen og kan ikke redigeres"
+        title={t('Endringslogg', 'Change log')}
+        subtitle={t('Hvem som endret hva — føres automatisk av databasen og kan ikke redigeres', 'Who changed what — kept automatically by the database and cannot be edited')}
         actions={
           <button onClick={exportCsv}>
-            <Download size={14} /> Eksporter (CSV)
+            <Download size={14} /> {t('Eksporter (CSV)', 'Export (CSV)')}
           </button>
         }
       />
@@ -111,10 +112,10 @@ export function AuditPage() {
         <div className="row" style={{ padding: '16px 20px', gap: 14 }}>
           <div className="search" style={{ width: 300 }}>
             <Search size={15} />
-            <input type="search" placeholder="Søk på person eller endring" value={query} onChange={(e) => setQuery(e.target.value)} />
+            <input type="search" placeholder={t('Søk på person eller endring', 'Search for a person or change')} value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
-          <select value={tableFilter} onChange={(e) => setTableFilter(e.target.value)} aria-label="Type endring">
-            <option value="all">Alle typer</option>
+          <select value={tableFilter} onChange={(e) => setTableFilter(e.target.value)} aria-label={t('Type endring', 'Type of change')}>
+            <option value="all">{t('Alle typer', 'All types')}</option>
             {Object.entries(TABLE_LABELS).map(([key, label]) => (
               <option key={key} value={key}>
                 {label}
@@ -122,18 +123,21 @@ export function AuditPage() {
             ))}
           </select>
           <span className="faint small">
-            Viser {visible.length} av {entries.length} hentede
+            {t(`Viser ${visible.length} av ${entries.length} hentede`, `Showing ${visible.length} of ${entries.length} loaded`)}
           </span>
         </div>
         <ChangeList entries={visible} names={names} showSubject />
         {hasMore && (
           <div style={{ padding: 16, textAlign: 'center' }}>
-            <button onClick={() => void loadMore()}>Vis eldre endringer</button>
+            <button onClick={() => void loadMore()}>{t('Vis eldre endringer', 'Show older changes')}</button>
           </div>
         )}
       </section>
       <p className="faint small" style={{ margin: 0 }}>
-        Logges ikke: spillere som fører egne måltider og vann, og endringer gjort direkte i Supabase-dashboardet.
+        {t(
+          'Logges ikke: spillere som fører egne måltider og vann, og endringer gjort direkte i Supabase-dashboardet.',
+          'Not logged: players logging their own meals and water, and changes made directly in the Supabase dashboard.',
+        )}
       </p>
     </div>
   );

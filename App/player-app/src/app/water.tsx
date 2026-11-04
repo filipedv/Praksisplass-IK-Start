@@ -27,11 +27,13 @@ import {
   sumWater,
   type WaterLog,
 } from '@/water/water-api';
+import { useI18n } from '@/lib/i18n';
 
 const QUICK_AMOUNTS = [200, 330, 500];
 
 export default function WaterScreen() {
   const { session } = useSession();
+  const { t, locale } = useI18n();
   const { date: dateParam } = useLocalSearchParams<{ date?: string }>();
   const day = parseISODate(dateParam);
   const readOnly = !isToday(day);
@@ -80,24 +82,24 @@ export default function WaterScreen() {
       updateLogs([entry, ...(logs ?? [])]); // newest first
     } catch (e) {
       console.warn('Add water failed', e);
-      Alert.alert('Kunne ikke registrere vann', 'Sjekk nettforbindelsen og prøv igjen.');
+      Alert.alert(t('Kunne ikke registrere vann', "Couldn't log water"), t('Sjekk nettforbindelsen og prøv igjen.', 'Check your connection and try again.'));
     } finally {
       setAdding(false);
     }
   }
 
   function confirmDelete(entry: WaterLog) {
-    Alert.alert('Slette registreringen?', `+${entry.amount_ml} ml kl. ${formatTime(new Date(entry.logged_at))}`, [
-      { text: 'Avbryt', style: 'cancel' },
+    Alert.alert(t('Slette registreringen?', 'Delete this entry?'), `+${entry.amount_ml} ml · ${formatTime(new Date(entry.logged_at), locale)}`, [
+      { text: t('Avbryt', 'Cancel'), style: 'cancel' },
       {
-        text: 'Slett',
+        text: t('Slett', 'Delete'),
         style: 'destructive',
         onPress: async () => {
           try {
             await deleteWater(entry.id);
             updateLogs((logs ?? []).filter((l) => l.id !== entry.id));
           } catch {
-            Alert.alert('Kunne ikke slette registreringen.');
+            Alert.alert(t('Kunne ikke slette registreringen.', "Couldn't delete the entry."));
           }
         },
       },
@@ -108,8 +110,8 @@ export default function WaterScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <ScreenHeader title="Vann" onBack={() => router.back()} />
-      <Text style={styles.dateLabel}>{readOnly ? formatDayDate(day) : 'I dag'}</Text>
+      <ScreenHeader title={t('Vann', 'Water')} onBack={() => router.back()} />
+      <Text style={styles.dateLabel}>{readOnly ? formatDayDate(day, locale) : t('I dag', 'Today')}</Text>
 
       <ScrollView contentContainerStyle={styles.scroll}>
         <Card style={styles.mainCard}>
@@ -117,7 +119,7 @@ export default function WaterScreen() {
           <GlassRow totalMl={total} goalMl={goal} size={28} />
 
           {readOnly ? (
-            <Text style={styles.readOnly}>Kan bare registrere vann for i dag.</Text>
+            <Text style={styles.readOnly}>{t('Kan bare registrere vann for i dag.', 'You can only log water for today.')}</Text>
           ) : (
             <View style={styles.buttons}>
               {QUICK_AMOUNTS.map((ml) => (
@@ -126,7 +128,7 @@ export default function WaterScreen() {
                   style={({ pressed }) => [styles.addButton, (pressed || adding) && { opacity: 0.7 }]}
                   onPress={() => handleAdd(ml)}
                   disabled={adding}
-                  accessibilityLabel={`Legg til ${ml} milliliter`}>
+                  accessibilityLabel={t(`Legg til ${ml} milliliter`, `Add ${ml} millilitres`)}>
                   <Ionicons name="add" size={13} color={BLUE_TEXT} />
                   <Text style={styles.addButtonText}>+{ml} ml</Text>
                 </Pressable>
@@ -136,16 +138,16 @@ export default function WaterScreen() {
         </Card>
 
         <View style={styles.logSection}>
-          <Text style={styles.logTitle}>Registreringer</Text>
+          <Text style={styles.logTitle}>{t('Registreringer', 'Entries')}</Text>
           {logs === null ? (
             <ActivityIndicator color={colors.primary} />
           ) : logs.length === 0 ? (
-            <Text style={styles.noLogs}>Ingen registreringer denne dagen.</Text>
+            <Text style={styles.noLogs}>{t('Ingen registreringer denne dagen.', 'No entries this day.')}</Text>
           ) : (
             logs.map((entry) => (
               <Pressable key={entry.id} onLongPress={() => confirmDelete(entry)} delayLongPress={400}>
                 <Card style={styles.logRow}>
-                  <Text style={styles.logTime}>{formatTime(new Date(entry.logged_at))}</Text>
+                  <Text style={styles.logTime}>{formatTime(new Date(entry.logged_at), locale)}</Text>
                   <Text style={styles.logAmount}>+{entry.amount_ml} ml</Text>
                 </Card>
               </Pressable>

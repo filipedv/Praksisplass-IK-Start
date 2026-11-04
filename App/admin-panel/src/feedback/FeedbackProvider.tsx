@@ -5,6 +5,7 @@ import { X } from 'lucide-react';
 import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
 
 import { FeedbackContext, type ConfirmOptions } from './feedback-context';
+import { t } from '../lib/i18n';
 
 type Toast = { id: number; text: string; tone: 'success' | 'error' };
 
@@ -22,7 +23,7 @@ export function FeedbackProvider({ children }: PropsWithChildren) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   function dismiss(id: number) {
-    setToasts((all) => all.filter((t) => t.id !== id));
+    setToasts((all) => all.filter((item) => item.id !== id));
   }
 
   function toast(text: string, tone: 'success' | 'error' = 'success', options?: { long?: boolean }) {
@@ -54,10 +55,10 @@ export function FeedbackProvider({ children }: PropsWithChildren) {
       {children}
 
       <div className="toasts" aria-live="polite">
-        {toasts.map((t) => (
-          <div key={t.id} className={`toast ${t.tone}`} role={t.tone === 'error' ? 'alert' : 'status'}>
-            <p>{t.text}</p>
-            <button className="link-button" onClick={() => dismiss(t.id)} aria-label="Lukk melding">
+        {toasts.map((item) => (
+          <div key={item.id} className={`toast ${item.tone}`} role={item.tone === 'error' ? 'alert' : 'status'}>
+            <p>{item.text}</p>
+            <button className="link-button" onClick={() => dismiss(item.id)} aria-label={t('Lukk melding', 'Close message')}>
               <X size={16} />
             </button>
           </div>
@@ -72,12 +73,12 @@ export function FeedbackProvider({ children }: PropsWithChildren) {
             {pending.body && <p>{pending.body}</p>}
             {pending.requireText && (
               <label style={{ marginBottom: 16 }}>
-                Skriv «{pending.requireText}» for å bekrefte
+                {t(`Skriv «${pending.requireText}» for å bekrefte`, `Type “${pending.requireText}” to confirm`)}
                 <input value={typed} onChange={(e) => setTyped(e.target.value)} autoFocus autoComplete="off" />
               </label>
             )}
             <div className="row" style={{ justifyContent: 'flex-end', marginTop: pending.body ? 0 : 20 }}>
-              <button onClick={() => answer(false)}>Avbryt</button>
+              <button onClick={() => answer(false)}>{t('Avbryt', 'Cancel')}</button>
               <button
                 className={pending.danger ? 'primary danger-fill' : 'primary'}
                 onClick={() => answer(true)}

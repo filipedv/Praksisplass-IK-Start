@@ -4,6 +4,7 @@
 
 import { STATUS_COLORS, STATUS_LABELS, STATUS_ORDER, type Status } from '../lib/status';
 import { StatusIcon } from './ui';
+import { t } from '../lib/i18n';
 
 export type StripDay = { key: string; title: string; status: Status | null }; // null = future / in progress
 
@@ -23,7 +24,7 @@ export function StatusStrip({ days, small, selectedKey, onSelect, showLegend }: 
     <div className="stack" style={{ gap: 10 }}>
       <div className="strip" role="list">
         {days.map((d) => {
-          const label = `${d.title}: ${d.status ? STATUS_LABELS[d.status] : 'pågår'}`;
+          const label = `${d.title}: ${d.status ? STATUS_LABELS[d.status] : t('pågår', 'in progress')}`;
           return (
             <button
               key={d.key}

@@ -18,6 +18,7 @@ import {
   type PlayerGoalsRow,
 } from '../lib/summary-api';
 import type { Team } from '../lib/types';
+import { locale, t } from '../lib/i18n';
 
 type Props = {
   userId: string;
@@ -53,17 +54,17 @@ export function GoalsCard({ userId, playerName, defaults, own, team, onSaved }: 
       }
       const n = Number(raw);
       const min = key === 'goal_kcal' || key === 'goal_water_ml' ? 1 : 0;
-      if (!Number.isInteger(n) || n < min) return toast(`${label}: må være et helt tall${min ? ' over 0' : ''}.`, 'error');
+      if (!Number.isInteger(n) || n < min) return toast(`${label}: ${t(`må være et helt tall${min ? ' over 0' : ''}.`, `must be a whole number${min ? ' above 0' : ''}.`)}`, 'error');
       values[key] = n;
     }
     setBusy(true);
     try {
       await savePlayerGoals(userId, values);
-      toast(`Målene til ${playerName} er lagret.`);
+      toast(t(`Målene til ${playerName} er lagret.`, `${playerName}'s goals have been saved.`));
       setEditing(false);
       onSaved();
     } catch (err) {
-      toast(`Kunne ikke lagre målene: ${(err as Error).message}`, 'error');
+      toast(`${t('Kunne ikke lagre målene', "Couldn't save the goals")}: ${(err as Error).message}`, 'error');
     } finally {
       setBusy(false);
     }
@@ -71,19 +72,31 @@ export function GoalsCard({ userId, playerName, defaults, own, team, onSaved }: 
 
   async function resetToClub() {
     const ok = await confirm({
-      title: team ? `Bruke lagets mål (${team.name})?` : 'Bruke klubbens standardmål?',
-      body: `Alle egne mål for ${playerName} fjernes. Spilleren følger da ${team ? `målene til ${team.name} (og klubbens standard der laget ikke har mål)` : 'klubbens standard fra Klubbinnstillinger'}.`,
-      confirmLabel: team ? 'Bruk lagets mål' : 'Bruk klubbstandard',
+      title: team ? t(`Bruke lagets mål (${team.name})?`, `Use the team's goals (${team.name})?`) : t('Bruke klubbens standardmål?', "Use the club's default goals?"),
+      body: team
+        ? t(
+            `Alle egne mål for ${playerName} fjernes. Spilleren følger da målene til ${team.name} (og klubbens standard der laget ikke har mål).`,
+            `All of ${playerName}'s own goals are removed. The player then follows ${team.name}'s goals (and the club default where the team has none).`,
+          )
+        : t(
+            `Alle egne mål for ${playerName} fjernes. Spilleren følger da klubbens standard fra Klubbinnstillinger.`,
+            `All of ${playerName}'s own goals are removed. The player then follows the club default from Club settings.`,
+          ),
+      confirmLabel: team ? t('Bruk lagets mål', "Use the team's goals") : t('Bruk klubbstandard', 'Use club default'),
     });
     if (!ok) return;
     setBusy(true);
     try {
       await savePlayerGoals(userId, { goal_kcal: null, goal_protein_g: null, goal_carbs_g: null, goal_fat_g: null, goal_water_ml: null });
-      toast(`${playerName} følger nå ${team ? `målene til ${team.name}` : 'klubbens standardmål'}.`);
+      toast(
+        team
+          ? t(`${playerName} følger nå målene til ${team.name}.`, `${playerName} now follows ${team.name}'s goals.`)
+          : t(`${playerName} følger nå klubbens standardmål.`, `${playerName} now follows the club's default goals.`),
+      );
       setEditing(false);
       onSaved();
     } catch (err) {
-      toast(`Kunne ikke lagre: ${(err as Error).message}`, 'error');
+      toast(`${t('Kunne ikke lagre', "Couldn't save")}: ${(err as Error).message}`, 'error');
     } finally {
       setBusy(false);
     }
@@ -94,10 +107,10 @@ export function GoalsCard({ userId, playerName, defaults, own, team, onSaved }: 
   return (
     <section className="card">
       <div className="card-header">
-        <h2>Dagsmål</h2>
+        <h2>{t('Dagsmål', 'Daily goals')}</h2>
         {!editing && (
           <button className="small ghost" onClick={startEditing}>
-            <SlidersHorizontal size={13} /> Juster mål
+            <SlidersHorizontal size={13} /> {t('Juster mål', 'Adjust goals')}
           </button>
         )}
       </div>
@@ -111,7 +124,7 @@ export function GoalsCard({ userId, playerName, defaults, own, team, onSaved }: 
                 <span className="muted">{label}</span>
                 <span className="row" style={{ gap: 8 }}>
                   <strong className="num">
-                    {(own?.[key] ?? fallback(key)).toLocaleString('nb-NO')} {unit}
+                    {(own?.[key] ?? fallback(key)).toLocaleString(locale())} {unit}
                   </strong>
                   <span className={`pill ${source === 'own' ? 'info' : source === 'team' ? 'ok' : ''}`}>{GOAL_SOURCE_LABELS[source]}</span>
                 </span>
@@ -119,14 +132,18 @@ export function GoalsCard({ userId, playerName, defaults, own, team, onSaved }: 
             );
           })}
           <p className="faint small" style={{ margin: '6px 0 0' }}>
-            «Eget» = satt for denne spilleren · «Lag» = {team ? `målet til ${team.name}` : 'lagets mål'} · «Klubb» = standard
-            fra Klubbinnstillinger. Plassholderverdier — ikke ernæringsråd.
+            {t(
+              `«Eget» = satt for denne spilleren · «Lag» = ${team ? `målet til ${team.name}` : 'lagets mål'} · «Klubb» = standard fra Klubbinnstillinger. Plassholderverdier — ikke ernæringsråd.`,
+              `“Own” = set for this player · “Team” = ${team ? `${team.name}'s goal` : "the team's goal"} · “Club” = default from Club settings. Placeholder values — not nutrition advice.`,
+            )}
           </p>
         </div>
       ) : (
         <form className="stack" onSubmit={handleSubmit}>
           <p className="faint small" style={{ margin: 0 }}>
-            La et felt stå tomt for å bruke {team ? `målet til ${team.name}` : 'klubbens standard'} (vist i feltet).
+            {team
+              ? t(`La et felt stå tomt for å bruke målet til ${team.name} (vist i feltet).`, `Leave a field empty to use ${team.name}'s goal (shown in the field).`)
+              : t('La et felt stå tomt for å bruke klubbens standard (vist i feltet).', "Leave a field empty to use the club's default (shown in the field).")}
           </p>
           <div className="grid-2">
             {GOAL_FIELDS.map(({ key, label, unit }) => (
@@ -143,14 +160,14 @@ export function GoalsCard({ userId, playerName, defaults, own, team, onSaved }: 
           </div>
           <div className="row">
             <button type="submit" className="primary" disabled={busy}>
-              {busy ? 'Lagrer…' : 'Lagre mål'}
+              {busy ? t('Lagrer…', 'Saving…') : t('Lagre mål', 'Save goals')}
             </button>
             <button type="button" onClick={() => setEditing(false)} disabled={busy}>
-              Avbryt
+              {t('Avbryt', 'Cancel')}
             </button>
             {hasOwn && (
               <button type="button" className="ghost" onClick={resetToClub} disabled={busy} style={{ marginLeft: 'auto' }}>
-                {team ? 'Bruk lagets mål' : 'Bruk klubbstandard'}
+                {team ? t('Bruk lagets mål', "Use the team's goals") : t('Bruk klubbstandard', 'Use club default')}
               </button>
             )}
           </div>

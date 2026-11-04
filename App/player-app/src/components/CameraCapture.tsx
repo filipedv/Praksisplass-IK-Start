@@ -11,6 +11,7 @@ import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, font, radius, spacing } from '@/lib/theme';
+import { useI18n } from '@/lib/i18n';
 
 type Props = {
   onPhoto: (uri: string) => void; // a local file:// URI
@@ -18,6 +19,7 @@ type Props = {
 };
 
 export function CameraCapture({ onPhoto, onManual }: Props) {
+  const { t } = useI18n();
   const [permission, requestPermission] = useCameraPermissions();
   const cameraRef = useRef<CameraView>(null);
   const [busy, setBusy] = useState(false);
@@ -56,22 +58,25 @@ export function CameraCapture({ onPhoto, onManual }: Props) {
     return (
       <SafeAreaView style={[styles.black, styles.center]}>
         <Ionicons name="camera-outline" size={36} color={colors.faint} />
-        <Text style={styles.permissionTitle}>Tilgang til kamera</Text>
+        <Text style={styles.permissionTitle}>{t('Tilgang til kamera', 'Camera access')}</Text>
         <Text style={styles.permissionText}>
-          Appen bruker kameraet til å ta bilde av måltidet ditt. Bildet lagres ikke.
+          {t(
+            'Appen bruker kameraet til å ta bilde av måltidet ditt. Bildet lagres ikke.',
+            'The app uses the camera to take a photo of your meal. The photo is not stored.',
+          )}
         </Text>
         {permission.canAskAgain ? (
           <Pressable style={styles.permissionButton} onPress={requestPermission}>
-            <Text style={styles.permissionButtonText}>Gi tilgang</Text>
+            <Text style={styles.permissionButtonText}>{t('Gi tilgang', 'Allow access')}</Text>
           </Pressable>
         ) : (
           // The user said no before; iOS/Android only let us ask once.
           <Pressable style={styles.permissionButton} onPress={() => Linking.openSettings()}>
-            <Text style={styles.permissionButtonText}>Åpne Innstillinger</Text>
+            <Text style={styles.permissionButtonText}>{t('Åpne Innstillinger', 'Open Settings')}</Text>
           </Pressable>
         )}
         <Pressable onPress={pickFromLibrary} hitSlop={8}>
-          <Text style={styles.link}>Velg fra bilder i stedet</Text>
+          <Text style={styles.link}>{t('Velg fra bilder i stedet', 'Choose from photos instead')}</Text>
         </Pressable>
       </SafeAreaView>
     );
@@ -84,11 +89,14 @@ export function CameraCapture({ onPhoto, onManual }: Props) {
       <SafeAreaView style={styles.overlay} edges={['top']}>
         <View style={styles.bottom}>
           <Text style={styles.privacy}>
-            Bildet sendes til gjenkjenning og lagres ikke — kun maten og næringsverdiene blir lagret.
+            {t(
+              'Bildet sendes til gjenkjenning og lagres ikke — kun maten og næringsverdiene blir lagret.',
+              'The photo is sent for recognition and not stored — only the food and nutrition values are saved.',
+            )}
           </Text>
 
           <View style={styles.controls}>
-            <Pressable style={styles.sideButton} onPress={pickFromLibrary} accessibilityLabel="Velg fra bilder">
+            <Pressable style={styles.sideButton} onPress={pickFromLibrary} accessibilityLabel={t('Velg fra bilder', 'Choose from photos')}>
               <Ionicons name="images-outline" size={24} color="#fff" />
             </Pressable>
 
@@ -96,11 +104,11 @@ export function CameraCapture({ onPhoto, onManual }: Props) {
               style={({ pressed }) => [styles.shutter, (pressed || busy) && { opacity: 0.6 }]}
               onPress={takePhoto}
               disabled={busy}
-              accessibilityLabel="Ta bilde">
+              accessibilityLabel={t('Ta bilde', 'Take photo')}>
               <View style={styles.shutterInner} />
             </Pressable>
 
-            <Pressable style={styles.sideButton} onPress={onManual} accessibilityLabel="Legg til uten bilde">
+            <Pressable style={styles.sideButton} onPress={onManual} accessibilityLabel={t('Legg til uten bilde', 'Add without a photo')}>
               <Ionicons name="create-outline" size={24} color="#fff" />
             </Pressable>
           </View>

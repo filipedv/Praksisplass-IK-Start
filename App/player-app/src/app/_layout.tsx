@@ -3,11 +3,17 @@
 //
 // Stack.Protected (Expo Router) hides a group of screens unless `guard` is
 // true — so logged-out users can only ever reach /login.
+//
+// It also keeps the match/training reminders on the phone up to date: every
+// time the app opens or comes back to the front (see src/fixtures).
 
 import { DarkTheme, SplashScreen, Stack, ThemeProvider } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
+import { AppState } from 'react-native';
 
 import { SessionProvider, useSession } from '@/auth/session-context';
+import { syncFixtureReminders } from '@/fixtures/fixtures';
 import { colors } from '@/lib/theme';
 
 // Keep the splash screen up until we know whether there's a saved login.
@@ -40,8 +46,20 @@ export default function RootLayout() {
   );
 }
 
+/** Re-schedule the fixture reminders now, and whenever the app returns to the front. */
+function useFixtureReminderSync(userId: string | undefined) {
+  useEffect(() => {
+    if (!userId) return;
+    const sync = () => void syncFixtureReminders(userId).catch((e) => console.warn('Fixture reminder sync failed', e));
+    sync();
+    const subscription = AppState.addEventListener('change', (state) => state === 'active' && sync());
+    return () => subscription.remove();
+  }, [userId]);
+}
+
 function RootNavigator() {
   const { session, isLoading } = useSession();
+  useFixtureReminderSync(session?.user.id);
 
   if (isLoading) return null; // splash screen still showing
   SplashScreen.hide();
@@ -52,6 +70,10 @@ function RootNavigator() {
         <Stack.Screen name="(tabs)" />
         <Stack.Screen name="meal/[id]" />
         <Stack.Screen name="water" />
+        <Stack.Screen name="search" />
+        <Stack.Screen name="settings" />
+        <Stack.Screen name="password" />
+        <Stack.Screen name="profile-settings" />
         <Stack.Screen name="privacy" />
       </Stack.Protected>
 

@@ -53,19 +53,22 @@ export function dayRange(date: Date): { start: string; end: string } {
   return { start: start.toISOString(), end: addDays(start, 1).toISOString() };
 }
 
-/** "Onsdag 14. oktober" */
-export function formatDayDate(date: Date): string {
-  const s = date.toLocaleDateString('nb-NO', { weekday: 'long', day: 'numeric', month: 'long' });
+// The formatters take the locale ('nb-NO' / 'en-GB', from useI18n()) as an
+// argument, so a screen redraws them when the language changes.
+
+/** "Onsdag 14. oktober" / "Wednesday 14 October" */
+export function formatDayDate(date: Date, locale: string): string {
+  const s = date.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' });
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-/** "Oktober 2026" */
-export function formatMonthYear(date: Date): string {
-  const s = date.toLocaleDateString('nb-NO', { month: 'long', year: 'numeric' });
+/** "Oktober 2026" / "October 2026" */
+export function formatMonthYear(date: Date, locale: string): string {
+  const s = date.toLocaleDateString(locale, { month: 'long', year: 'numeric' });
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 /** "14:05" */
-export function formatTime(date: Date): string {
-  return date.toLocaleTimeString('nb-NO', { hour: '2-digit', minute: '2-digit' });
+export function formatTime(date: Date, locale: string): string {
+  return date.toLocaleTimeString(locale, { hour: '2-digit', minute: '2-digit' });
 }

@@ -4,6 +4,7 @@
 import { CircleCheck, CircleDashed, CircleAlert, CircleMinus } from 'lucide-react';
 import type { CSSProperties, ReactNode } from 'react';
 
+import { locale, t } from '../lib/i18n';
 import { STATUS_COLORS, STATUS_LABELS, type Status } from '../lib/status';
 
 /** Page title + subtitle on the left, actions on the right. */
@@ -72,11 +73,11 @@ export function Meter({
 }) {
   const pct = goal > 0 ? Math.min(100, Math.round((value / goal) * 100)) : 0;
   return (
-    <div className="meter" title={`${Math.round(value)} av ${goal} ${unit} (${pct} %)`}>
+    <div className="meter" title={`${Math.round(value)} ${t('av', 'of')} ${goal} ${unit} (${pct} %)`}>
       <div className="meter-top">
         {label ? <span>{label}</span> : <span />}
         <strong>
-          {Math.round(value).toLocaleString('nb-NO')} / {goal.toLocaleString('nb-NO')} {unit}
+          {Math.round(value).toLocaleString(locale())} / {goal.toLocaleString(locale())} {unit}
         </strong>
       </div>
       <div className="meter-track" role="meter" aria-valuenow={value} aria-valuemin={0} aria-valuemax={goal}>

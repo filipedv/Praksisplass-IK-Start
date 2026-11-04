@@ -6,6 +6,7 @@
 // the user edits amounts.
 
 import type { Food, NutrientKey, Nutrition, Portion } from './types';
+import type { Language } from '@/lib/i18n';
 
 /** Nutrition for `grams` of a food whose values are per 100 g. */
 export function scaleNutrition(per100g: Nutrition, grams: number): Nutrition {
@@ -27,10 +28,11 @@ export function sumNutrition(list: Nutrition[]): Nutrition {
   return total;
 }
 
-/** Norwegian number format: 1 decimal at most, comma as decimal separator. */
-export function formatNumber(value: number | undefined, decimals = 0): string {
+/** A number with `decimals` decimals: "1,5" in Norwegian, "1.5" in English. */
+export function formatNumber(value: number | undefined, decimals = 0, lang: Language = 'nb'): string {
   if (value === undefined || Number.isNaN(value)) return '–';
-  return value.toFixed(decimals).replace('.', ',');
+  const text = value.toFixed(decimals);
+  return lang === 'en' ? text : text.replace('.', ',');
 }
 
 /** Sensible starting amount for a food: one preferred portion, else 100 g. */
@@ -38,33 +40,41 @@ export function defaultAmountGrams(food: Food): number {
   return food.portions[0]?.grams ?? 100;
 }
 
-// Norwegian plurals for the most common Matvaretabellen portion names.
-// Names not listed (stk, glass, desiliter, beger …) are the same in plural.
-const PLURALS: Record<string, string> = {
-  porsjon: 'porsjoner',
-  skive: 'skiver',
-  kopp: 'kopper',
-  pakke: 'pakker',
-  spiseskje: 'spiseskjeer',
-  teskje: 'teskjeer',
+// Matvaretabellen's portion names are Norwegian. The common ones get a
+// plural and an English name: [plural, English, English plural].
+// Names not listed (e.g. "stk", "beger") are shown as they are.
+const PORTION_WORDS: Record<string, [string, string, string]> = {
+  porsjon: ['porsjoner', 'portion', 'portions'],
+  skive: ['skiver', 'slice', 'slices'],
+  kopp: ['kopper', 'cup', 'cups'],
+  pakke: ['pakker', 'pack', 'packs'],
+  spiseskje: ['spiseskjeer', 'tablespoon', 'tablespoons'],
+  teskje: ['teskjeer', 'teaspoon', 'teaspoons'],
+  stk: ['stk', 'piece', 'pieces'],
+  glass: ['glass', 'glass', 'glasses'],
+  desiliter: ['desiliter', 'decilitre', 'decilitres'],
+  beger: ['beger', 'tub', 'tubs'],
 };
 
-/** "porsjon" → "porsjoner", "skive (tynn)" → "skiver (tynn)". */
-function pluralize(name: string): string {
+/** "porsjon" → "porsjoner" / "portion" / "portions"; "skive (tynn)" → "slices (tynn)". */
+export function portionName(name: string, plural: boolean, lang: Language): string {
   const [first, ...rest] = name.split(' ');
-  return [PLURALS[first] ?? first, ...rest].join(' ');
+  const words = PORTION_WORDS[first];
+  if (!words) return name;
+  const word = lang === 'en' ? (plural ? words[2] : words[1]) : plural ? words[0] : first;
+  return [word, ...rest].join(' ');
 }
 
 /**
  * The portion-equivalent shown next to grams, e.g. "≈ 1 porsjon", "≈ 1,5 porsjoner".
  * Rounded to the nearest half portion. Returns null if the food has no portions.
  */
-export function portionEquivalent(grams: number, portions: Portion[]): string | null {
+export function portionEquivalent(grams: number, portions: Portion[], lang: Language): string | null {
   const portion = portions[0];
   if (!portion || grams <= 0) return null;
 
   const count = Math.round((grams / portion.grams) * 2) / 2; // nearest 0.5
-  if (count === 0) return `< ½ ${portion.name}`;
-  const name = count > 1 ? pluralize(portion.name) : portion.name;
-  return `≈ ${formatNumber(count, Number.isInteger(count) ? 0 : 1)} ${name}`;
+  if (count === 0) return `< ½ ${portionName(portion.name, false, lang)}`;
+  const name = portionName(portion.name, count > 1, lang);
+  return `≈ ${formatNumber(count, Number.isInteger(count) ? 0 : 1, lang)} ${name}`;
 }

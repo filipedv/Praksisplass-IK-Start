@@ -15,6 +15,7 @@ import { GOAL_FIELDS, fetchAllGoals, type Goals } from '../lib/summary-api';
 import { supabase } from '../lib/supabase';
 import { deleteTeam, listTeams, saveTeam } from '../lib/teams-api';
 import type { Team } from '../lib/types';
+import { locale, t } from '../lib/i18n';
 
 type Draft = { id?: string; name: string; sort_order: string } & Record<keyof Goals, string>;
 
@@ -50,7 +51,7 @@ export function TeamsPage() {
     let cancelled = false;
     fetchTeamsPage()
       .then((result) => !cancelled && setData(result))
-      .catch((e) => !cancelled && toast(`Kunne ikke hente lag: ${e.message}`, 'error'));
+      .catch((e) => !cancelled && toast(`${t('Kunne ikke hente lag', "Couldn't load teams")}: ${e.message}`, 'error'));
     return () => {
       cancelled = true;
     };
@@ -67,7 +68,7 @@ export function TeamsPage() {
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!draft) return;
-    if (!draft.name.trim()) return toast('Laget må ha et navn.', 'error');
+    if (!draft.name.trim()) return toast(t('Laget må ha et navn.', 'The team needs a name.'), 'error');
     const goals = {} as Record<keyof Goals, number | null>;
     for (const { key, label } of GOAL_FIELDS) {
       const raw = draft[key].trim();
@@ -77,18 +78,27 @@ export function TeamsPage() {
       }
       const n = Number(raw);
       const min = key === 'goal_kcal' || key === 'goal_water_ml' ? 1 : 0;
-      if (!Number.isInteger(n) || n < min) return toast(`${label}: må være et helt tall${min ? ' over 0' : ''}.`, 'error');
+      if (!Number.isInteger(n) || n < min) return toast(`${label}: ${t(`må være et helt tall${min ? ' over 0' : ''}.`, `must be a whole number${min ? ' above 0' : ''}.`)}`, 'error');
       goals[key] = n;
     }
     setBusy(true);
     try {
       await saveTeam({ id: draft.id, name: draft.name.trim(), sort_order: Number(draft.sort_order) || 0, ...goals });
-      toast(draft.id ? `${draft.name.trim()} er lagret.` : `Laget ${draft.name.trim()} er opprettet.`);
+      toast(
+        draft.id
+          ? t(`${draft.name.trim()} er lagret.`, `${draft.name.trim()} has been saved.`)
+          : t(`Laget ${draft.name.trim()} er opprettet.`, `The team ${draft.name.trim()} has been created.`),
+      );
       setDraft(null);
       setReloadKey((k) => k + 1);
     } catch (err) {
       const msg = (err as Error).message;
-      toast(msg.includes('duplicate') ? 'Det finnes allerede et lag med det navnet.' : `Kunne ikke lagre: ${msg}`, 'error');
+      toast(
+        msg.includes('duplicate')
+          ? t('Det finnes allerede et lag med det navnet.', 'There is already a team with that name.')
+          : `${t('Kunne ikke lagre', "Couldn't save")}: ${msg}`,
+        'error',
+      );
     } finally {
       setBusy(false);
     }
@@ -97,53 +107,59 @@ export function TeamsPage() {
   async function remove(team: Team) {
     const members = data?.counts.get(team.id) ?? 0;
     const ok = await confirm({
-      title: `Slette laget ${team.name}?`,
+      title: t(`Slette laget ${team.name}?`, `Delete the team ${team.name}?`),
       body: members
-        ? `${members} spiller(e) står på laget. De beholdes, men blir uten lag og følger klubbens standardmål (eller egne mål).`
-        : 'Laget har ingen spillere.',
-      confirmLabel: 'Slett lag',
+        ? t(
+            `${members} spiller(e) står på laget. De beholdes, men blir uten lag og følger klubbens standardmål (eller egne mål).`,
+            `${members} player(s) are on the team. They are kept, but end up without a team and follow the club's default goals (or their own).`,
+          )
+        : t('Laget har ingen spillere.', 'The team has no players.'),
+      confirmLabel: t('Slett lag', 'Delete team'),
       danger: true,
     });
     if (!ok) return;
     try {
       await deleteTeam(team.id);
-      toast(`Laget ${team.name} er slettet.`);
+      toast(t(`Laget ${team.name} er slettet.`, `The team ${team.name} has been deleted.`));
       setReloadKey((k) => k + 1);
     } catch (err) {
-      toast(`Kunne ikke slette: ${(err as Error).message}`, 'error');
+      toast(`${t('Kunne ikke slette', "Couldn't delete")}: ${(err as Error).message}`, 'error');
     }
   }
 
-  if (!data) return <p className="muted">Laster lag…</p>;
+  if (!data) return <p className="muted">{t('Laster lag…', 'Loading teams…')}</p>;
 
   return (
     <div className="stack-lg">
       <PageHeader
-        title="Lag"
-        subtitle="Mål gjelder i rekkefølgen: spillerens egne → lagets → klubbens standard"
+        title={t('Lag', 'Teams')}
+        subtitle={t("Mål gjelder i rekkefølgen: spillerens egne → lagets → klubbens standard", "Goals apply in this order: the player's own → the team's → the club default")}
         actions={
           <button className="primary" onClick={() => setDraft({ ...EMPTY_DRAFT })}>
-            <Plus size={15} /> Nytt lag
+            <Plus size={15} /> {t('Nytt lag', 'New team')}
           </button>
         }
       />
 
       {draft && (
         <form className="card stack" onSubmit={handleSubmit}>
-          <h2>{draft.id ? `Rediger ${draft.name}` : 'Nytt lag'}</h2>
+          <h2>{draft.id ? `${t('Rediger', 'Edit')} ${draft.name}` : t('Nytt lag', 'New team')}</h2>
           <div className="grid-2">
             <label>
-              Navn
-              <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="f.eks. A-lag, G19" autoFocus required />
+              {t('Navn', 'Name')}
+              <input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder={t('f.eks. A-lag, G19', 'e.g. A-lag, G19')} autoFocus required />
             </label>
             <label>
-              Rekkefølge i lister
+              {t('Rekkefølge i lister', 'Order in lists')}
               <input inputMode="numeric" value={draft.sort_order} onChange={(e) => setDraft({ ...draft, sort_order: e.target.value })} />
             </label>
           </div>
-          <strong className="small">Lagets dagsmål</strong>
+          <strong className="small">{t('Lagets dagsmål', "The team's daily goals")}</strong>
           <p className="faint small" style={{ margin: 0 }}>
-            La et felt stå tomt for å bruke klubbens standard (vist i feltet). Plassholderverdier — ikke ernæringsråd.
+            {t(
+              'La et felt stå tomt for å bruke klubbens standard (vist i feltet). Plassholderverdier — ikke ernæringsråd.',
+              "Leave a field empty to use the club's default (shown in the field). Placeholder values — not nutrition advice.",
+            )}
           </p>
           <div className="grid-2">
             {GOAL_FIELDS.map(({ key, label, unit }) => (
@@ -160,10 +176,10 @@ export function TeamsPage() {
           </div>
           <div className="row">
             <button type="submit" className="primary" disabled={busy}>
-              {busy ? 'Lagrer…' : draft.id ? 'Lagre' : 'Opprett lag'}
+              {busy ? t('Lagrer…', 'Saving…') : draft.id ? t('Lagre', 'Save') : t('Opprett lag', 'Create team')}
             </button>
             <button type="button" onClick={() => setDraft(null)} disabled={busy}>
-              Avbryt
+              {t('Avbryt', 'Cancel')}
             </button>
           </div>
         </form>
@@ -174,8 +190,8 @@ export function TeamsPage() {
           <table>
             <thead>
               <tr>
-                <th>Lag</th>
-                <th className="num">Spillere</th>
+                <th>{t('Lag', 'Team')}</th>
+                <th className="num">{t('Spillere', 'Players')}</th>
                 {GOAL_FIELDS.map(({ key, label, unit }) => (
                   <th key={key} className="num">
                     {label} ({unit})
@@ -198,10 +214,10 @@ export function TeamsPage() {
                   {GOAL_FIELDS.map(({ key }) => (
                     <td key={key} className="num">
                       {team[key] != null ? (
-                        <strong>{team[key]!.toLocaleString('nb-NO')}</strong>
+                        <strong>{team[key]!.toLocaleString(locale())}</strong>
                       ) : (
-                        <span className="faint" title="Klubbens standard">
-                          {data.defaults[key].toLocaleString('nb-NO')}
+                        <span className="faint" title={t('Klubbens standard', "Club default")}>
+                          {data.defaults[key].toLocaleString(locale())}
                         </span>
                       )}
                     </td>
@@ -209,9 +225,9 @@ export function TeamsPage() {
                   <td>
                     <div className="row" style={{ gap: 6, justifyContent: 'flex-end', flexWrap: 'nowrap' }}>
                       <button className="small" onClick={() => edit(team)}>
-                        <Pencil size={12} /> Rediger
+                        <Pencil size={12} /> {t('Rediger', 'Edit')}
                       </button>
-                      <button className="small danger" onClick={() => void remove(team)} aria-label={`Slett ${team.name}`}>
+                      <button className="small danger" onClick={() => void remove(team)} aria-label={`${t('Slett', 'Delete')} ${team.name}`}>
                         <Trash2 size={13} />
                       </button>
                     </div>
@@ -221,7 +237,7 @@ export function TeamsPage() {
               {data.teams.length === 0 && (
                 <tr>
                   <td colSpan={GOAL_FIELDS.length + 3} className="muted" style={{ textAlign: 'center', padding: 32 }}>
-                    Ingen lag ennå. Opprett f.eks. «A-lag» og «G19».
+                    {t('Ingen lag ennå. Opprett f.eks. «A-lag» og «G19».', 'No teams yet. Create e.g. “A-lag” and “G19”.')}
                   </td>
                 </tr>
               )}
@@ -230,7 +246,10 @@ export function TeamsPage() {
         </div>
       </section>
       <p className="faint small" style={{ margin: 0 }}>
-        Fete tall = lagets eget mål. Grå tall = klubbens standard (laget har ikke satt noe).
+        {t(
+          'Fete tall = lagets eget mål. Grå tall = klubbens standard (laget har ikke satt noe).',
+          "Bold numbers = the team's own goal. Grey numbers = the club default (the team hasn't set one).",
+        )}
       </p>
     </div>
   );

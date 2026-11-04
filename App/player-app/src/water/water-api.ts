@@ -2,6 +2,7 @@
 // Like meals: RLS limits players to their own rows, but admins can read
 // everyone's — so we always filter on our own user id explicitly.
 
+import { fetchMyGoals, getCachedGoals } from '@/goals/goals-api';
 import { getCached, setCached } from '@/lib/cache';
 import { dayRange, toISODate } from '@/lib/dates';
 import { supabase } from '@/lib/supabase';
@@ -30,7 +31,7 @@ export const getCachedWater = (userId: string, day: Date) => getCached<WaterLog[
 /** Keep the cache in step after adding/deleting an entry. */
 export const setCachedWater = (userId: string, day: Date, logs: WaterLog[]) => setCached(waterKey(userId, day), logs);
 
-export const getCachedWaterGoal = () => getCached<number>('waterGoal');
+export const getCachedWaterGoal = () => getCachedGoals()?.goal_water_ml;
 
 export async function addWater(amountMl: number): Promise<WaterLog> {
   // user_id and logged_at are filled in by the database (auth.uid(), now()).
@@ -48,14 +49,9 @@ export async function deleteWater(id: string) {
   if (error) throw error;
 }
 
-/**
- * My daily water goal: my own goal if an admin set one for me, else my team's
- * goal, else the club default. The database works this out (effective_goals()).
- */
+/** My daily water goal — part of my goals (see src/goals/goals-api.ts). */
 export async function fetchWaterGoal(): Promise<number> {
-  const { data, error } = await supabase.rpc('effective_goals').maybeSingle<{ goal_water_ml: number }>();
-  if (error) throw error;
-  return setCached('waterGoal', data?.goal_water_ml ?? 2500);
+  return (await fetchMyGoals()).goal_water_ml;
 }
 
 export const sumWater = (logs: WaterLog[]) => logs.reduce((sum, l) => sum + l.amount_ml, 0);

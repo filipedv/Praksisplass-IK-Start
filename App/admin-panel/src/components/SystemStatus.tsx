@@ -11,6 +11,7 @@ import { Link } from 'react-router';
 
 import { formatDateTime } from '../lib/format';
 import { supabase } from '../lib/supabase';
+import { locale, t } from '../lib/i18n';
 
 const TRIAL_DAYS = 14;
 
@@ -56,17 +57,20 @@ export function SystemStatus({ todayIso }: { todayIso: string }) {
   if (!status) return null;
 
   // FatSecret trial: day N of 14 (start day = day 1).
-  let trialText = 'Ikke startet';
+  let trialText = t('Ikke startet', 'Not started');
   let trialTone = '';
   if (status.trialStart) {
     const daysUsed = Math.round((new Date(todayIso).getTime() - new Date(status.trialStart).getTime()) / 86_400_000) + 1;
     const left = TRIAL_DAYS - daysUsed + 1;
-    if (daysUsed < 1) trialText = `Starter ${new Date(status.trialStart).toLocaleDateString('nb-NO')}`;
+    if (daysUsed < 1) trialText = `${t('Starter', 'Starts')} ${new Date(status.trialStart).toLocaleDateString(locale())}`;
     else if (left > 0) {
-      trialText = `Dag ${daysUsed} av ${TRIAL_DAYS} — ${left} ${left === 1 ? 'dag' : 'dager'} igjen`;
+      trialText = t(
+        `Dag ${daysUsed} av ${TRIAL_DAYS} — ${left} ${left === 1 ? 'dag' : 'dager'} igjen`,
+        `Day ${daysUsed} of ${TRIAL_DAYS} — ${left} ${left === 1 ? 'day' : 'days'} left`,
+      );
       trialTone = left <= 3 ? 'warn' : 'ok';
     } else {
-      trialText = 'Utløpt';
+      trialText = t('Utløpt', 'Expired');
       trialTone = 'off';
     }
   }
@@ -74,37 +78,40 @@ export function SystemStatus({ todayIso }: { todayIso: string }) {
   return (
     <section className="card">
       <div className="card-header">
-        <h2>Systemstatus</h2>
+        <h2>{t('Systemstatus', 'System status')}</h2>
       </div>
       <div className="grid-3" style={{ gap: 16 }}>
         <div className="stack" style={{ gap: 4 }}>
           <span className="stat-label row" style={{ gap: 6 }}>
             <Database size={13} /> Matvaretabellen
           </span>
-          <strong>{status.mvtFoods.toLocaleString('nb-NO')} matvarer</strong>
+          <strong>
+            {status.mvtFoods.toLocaleString(locale())} {t('matvarer', 'foods')}
+          </strong>
           <span className="faint small">
-            Sist lastet: {status.seededAt ? formatDateTime(status.seededAt) : 'ukjent (før dette ble registrert)'}
+            {t('Sist lastet:', 'Last loaded:')}{' '}
+            {status.seededAt ? formatDateTime(status.seededAt) : t('ukjent (før dette ble registrert)', 'unknown (before this was recorded)')}
           </span>
           <span className="faint small">
-            {status.customFoods} egendefinerte · {status.aliases} koblinger
+            {status.customFoods} {t('egendefinerte', 'custom')} · {status.aliases} {t('koblinger', 'links')}
           </span>
         </div>
         <div className="stack" style={{ gap: 4 }}>
           <span className="stat-label row" style={{ gap: 6 }}>
-            <ScanSearch size={13} /> Gjenkjenning
+            <ScanSearch size={13} /> {t('Gjenkjenning', 'Recognition')}
           </span>
-          <strong>{status.lastEvent ? `Sist brukt: ${status.lastEvent.provider}` : 'Ikke brukt ennå'}</strong>
+          <strong>{status.lastEvent ? `${t('Sist brukt', 'Last used')}: ${status.lastEvent.provider}` : t('Ikke brukt ennå', 'Not used yet')}</strong>
           <span className="faint small">{status.lastEvent ? formatDateTime(status.lastEvent.created_at) : ''}</span>
         </div>
         <div className="stack" style={{ gap: 4 }}>
           <span className="stat-label row" style={{ gap: 6 }}>
-            <Timer size={13} /> FatSecret-prøveperiode
+            <Timer size={13} /> {t('FatSecret-prøveperiode', 'FatSecret trial')}
           </span>
           <span>
             <span className={`pill ${trialTone}`}>{trialText}</span>
           </span>
           <Link to="/settings" className="small">
-            Sett startdato i Klubbinnstillinger
+            {t('Sett startdato i Klubbinnstillinger', 'Set the start date in Club settings')}
           </Link>
         </div>
       </div>

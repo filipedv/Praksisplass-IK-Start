@@ -11,6 +11,10 @@ import 'expo-sqlite/localStorage/install';
 import { createClient } from '@supabase/supabase-js';
 import { AppState } from 'react-native';
 
+// Generated from the live database (npm run gen:types): makes every table,
+// column and function typed, so mistakes show up as TypeScript errors.
+import type { Database } from './database.types';
+
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
@@ -22,7 +26,7 @@ if (!supabaseUrl || !supabaseKey) {
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey, {
+export const supabase = createClient<Database>(supabaseUrl, supabaseKey, {
   auth: {
     storage: localStorage,
     autoRefreshToken: true,

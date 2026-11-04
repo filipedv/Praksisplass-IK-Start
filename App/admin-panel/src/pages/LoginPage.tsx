@@ -1,12 +1,16 @@
 // Admin login. Same accounts as the player app: being an admin is simply
-// having role = 'admin' on your profile.
+// having role = 'admin' on your profile. The language can be chosen here
+// too, before signing in.
 
 import { useState, type FormEvent } from 'react';
 
 import { useAuth } from '../auth/auth-context';
+import { Segmented } from '../components/ui';
+import { setLanguage, t, useLanguage } from '../lib/i18n';
 
 export function LoginPage() {
   const { signIn } = useAuth();
+  const language = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -21,13 +25,24 @@ export function LoginPage() {
 
   return (
     <form className="center narrow card stack" onSubmit={handleSubmit}>
-      <h1>IK Start Ernæring – Admin</h1>
+      <div className="row spread">
+        <h1>IK Start Ernæring – Admin</h1>
+        <Segmented
+          label={t('Språk', 'Language')}
+          value={language}
+          onChange={setLanguage}
+          options={[
+            { value: 'nb', label: 'Norsk' },
+            { value: 'en', label: 'English' },
+          ]}
+        />
+      </div>
       <label>
-        E-post
+        {t('E-post', 'Email')}
         <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
       </label>
       <label>
-        Passord
+        {t('Passord', 'Password')}
         <input
           type="password"
           value={password}
@@ -38,7 +53,7 @@ export function LoginPage() {
       </label>
       {error && <p className="error">{error}</p>}
       <button type="submit" className="primary" disabled={busy}>
-        {busy ? 'Logger inn…' : 'Logg inn'}
+        {busy ? t('Logger inn…', 'Signing in…') : t('Logg inn', 'Sign in')}
       </button>
     </form>
   );
