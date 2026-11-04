@@ -1,18 +1,27 @@
 // ⌘K (Ctrl+K on Windows) quick search: jump to a person, team, food or page
-// from anywhere, using only the keyboard.
+// from anywhere, using only the keyboard. A coach finds their own players
+// and their pages (RLS only returns their players anyway).
 //   ↑/↓ to move, Enter to open, Esc to close.
 
 import { Apple, CornerDownLeft, FileText, Search, Shield, User, Users } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 
+import { useAuth } from '../auth/auth-context';
 import { supabase } from '../lib/supabase';
 import { t } from '../lib/i18n';
 
 type Result = { key: string; label: string; hint: string; icon: typeof User; to: string };
 
-// A function (not a constant) so the labels follow the chosen language.
-const pages = (): Result[] => [
+// Functions (not constants) so the labels follow the chosen language.
+const coachPages = (): Result[] => [
+  { key: 'p:/', label: t('Oversikt', 'Overview'), hint: t('Side', 'Page'), icon: FileText, to: '/' },
+  { key: 'p:/players', label: t('Spillere', 'Players'), hint: t('Side', 'Page'), icon: FileText, to: '/players' },
+  { key: 'p:/teams', label: t('Mine lag', 'My teams'), hint: t('Side', 'Page'), icon: FileText, to: '/teams' },
+  { key: 'p:/fixtures', label: t('Kamper og treninger', 'Matches and training'), hint: t('Side', 'Page'), icon: FileText, to: '/fixtures' },
+];
+
+const adminPages = (): Result[] => [
   { key: 'p:/', label: t('Oversikt', 'Overview'), hint: t('Side', 'Page'), icon: FileText, to: '/' },
   { key: 'p:/users', label: t('Brukere', 'Users'), hint: t('Side', 'Page'), icon: FileText, to: '/users' },
   { key: 'p:/teams', label: t('Lag', 'Teams'), hint: t('Side', 'Page'), icon: FileText, to: '/teams' },
@@ -25,6 +34,7 @@ const pages = (): Result[] => [
 
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const navigate = useNavigate();
+  const { isCoach } = useAuth();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [query, setQuery] = useState('');
   const [people, setPeople] = useState<Result[]>([]);
@@ -47,20 +57,23 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     Promise.all([supabase.from('profiles').select('id, display_name, role'), supabase.from('teams').select('id, name')]).then(
       ([p, teamRows]) => {
         if (cancelled) return;
-        setPeople((p.data ?? []).map((u) => ({ key: `u:${u.id}`, label: u.display_name, hint: t('Person', 'Person'), icon: User, to: `/users/${u.id}` })));
-        setTeams((teamRows.data ?? []).map((team) => ({ key: `t:${team.id}`, label: team.name, hint: t('Lag', 'Team'), icon: Users, to: `/users?team=${team.id}` })));
+        // A coach can also read other staff's names; only their players have a page for them.
+        const people = (p.data ?? []).filter((u) => !isCoach || u.role === 'player');
+        setPeople(people.map((u) => ({ key: `u:${u.id}`, label: u.display_name, hint: t('Person', 'Person'), icon: User, to: `/users/${u.id}` })));
+        // Teams open the user list filtered on the team — an admin page.
+        setTeams(isCoach ? [] : (teamRows.data ?? []).map((team) => ({ key: `t:${team.id}`, label: team.name, hint: t('Lag', 'Team'), icon: Users, to: `/users?team=${team.id}` })));
       },
     );
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [open, isCoach]);
 
   // Foods: search the database as you type (debounced).
   useEffect(() => {
     let cancelled = false;
     const timer = setTimeout(async () => {
-      if (query.trim().length < 2) {
+      if (isCoach || query.trim().length < 2) {
         if (!cancelled) setFoods([]);
         return;
       }
@@ -80,11 +93,13 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [query]);
+  }, [query, isCoach]);
 
   const q = query.trim().toLowerCase();
   const match = (r: Result) => !q || r.label.toLowerCase().includes(q);
-  const results = [...people.filter(match).slice(0, 6), ...teams.filter(match), ...pages().filter(match), ...foods].slice(0, 14);
+  // Foods open the Matvarer page (admin only), so coaches don't search them.
+  const pages = isCoach ? coachPages() : adminPages();
+  const results = [...people.filter(match).slice(0, 6), ...teams.filter(match), ...pages.filter(match), ...foods].slice(0, 14);
   const current = Math.min(active, Math.max(results.length - 1, 0));
 
   function go(result: Result | undefined) {
@@ -105,7 +120,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         <Search size={16} />
         <input
           autoFocus
-          placeholder={t('Søk etter person, lag, matvare eller side …', 'Search for a person, team, food or page …')}
+          placeholder={isCoach ? t('Søk etter spiller eller side …', 'Search for a player or page …') : t('Søk etter person, lag, matvare eller side …', 'Search for a person, team, food or page …')}
           value={query}
           onChange={(e) => {
             setQuery(e.target.value);

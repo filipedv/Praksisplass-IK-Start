@@ -10,8 +10,14 @@
 //   /settings        → Klubbinnstillinger
 //   /recognition     → Gjenkjenning (how well recognizer labels match)
 //
-// Everything except the login page requires an active admin. That check is
-// for the UI only — the database enforces it again with RLS on every request.
+// Two dashboards in one panel:
+//   - ADMINS get every page above.
+//   - COACHES get a coach dashboard: Oversikt, Spillere (/players: their
+//     players, per team), the player page, Mine lag (their team goals) and
+//     Kamper og treninger — only for the teams an admin has
+//     assigned them (under Lag). Other URLs send a coach back to Oversikt.
+// These checks are for the UI only — the database enforces them again with
+// RLS on every request (see the coach_role migration).
 
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router';
 
@@ -26,6 +32,7 @@ import { FoodsPage } from './pages/FoodsPage';
 import { LoginPage } from './pages/LoginPage';
 import { OverviewPage } from './pages/OverviewPage';
 import { PlayerPage } from './pages/PlayerPage';
+import { PlayersPage } from './pages/PlayersPage';
 import { RecognitionPage } from './pages/RecognitionPage';
 import { TeamsPage } from './pages/TeamsPage';
 import { UsersPage } from './pages/UsersPage';
@@ -46,21 +53,36 @@ export default function App() {
   );
 }
 
-/** Decides what a visitor gets: loading, login, "not an admin", or the panel. */
+/** Decides what a visitor gets: loading, login, "no access", the coach dashboard, or the admin panel. */
 function Gate() {
-  const { session, isAdmin, isLoading, signOut } = useAuth();
+  const { session, isAdmin, isCoach, isLoading, signOut } = useAuth();
 
   if (isLoading) return <p className="center muted">{t('Laster…', 'Loading…')}</p>;
   if (!session) return <LoginPage />;
 
+  if (isCoach) {
+    return (
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<OverviewPage />} />
+          <Route path="players" element={<PlayersPage />} />
+          <Route path="users/:id" element={<PlayerPage />} />
+          <Route path="teams" element={<TeamsPage />} />
+          <Route path="fixtures" element={<FixturesPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    );
+  }
+
   if (!isAdmin) {
     return (
       <div className="center narrow card stack">
-        <h1>{t('Ingen admintilgang', 'No admin access')}</h1>
+        <h1>{t('Ingen tilgang', 'No access')}</h1>
         <p className="muted" style={{ margin: 0 }}>
           {t(
-            'Kontoen din er ikke administrator (eller er deaktivert). En administrator kan gi deg rollen, eller den kan settes én gang i Supabase-dashboardet — se README.',
-            'Your account is not an administrator (or has been deactivated). An administrator can give you the role, or it can be set once in the Supabase dashboard — see the README.',
+            'Panelet er for administratorer og trenere, og kontoen din har ingen av rollene (eller er deaktivert). Spillere bruker appen på telefonen. En administrator kan gi deg en rolle, eller den kan settes én gang i Supabase-dashboardet — se README.',
+            "The panel is for administrators and coaches, and your account has neither role (or has been deactivated). Players use the app on their phone. An administrator can give you a role, or it can be set once in the Supabase dashboard — see the README.",
           )}
         </p>
         <button onClick={signOut}>{t('Logg ut', 'Sign out')}</button>

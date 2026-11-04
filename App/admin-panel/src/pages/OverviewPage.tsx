@@ -1,9 +1,9 @@
-// OVERSIKT — the admin's start page. Answers, in this order:
+// OVERSIKT — the start page for admins AND coaches. Answers, in this order:
 //   1. Key numbers (stat tiles) for the chosen day: active, logged, habit, recognition.
 //   2. "Trenger oppfølging": concrete reasons to act — not logging, far from
 //      goal, and suspicious data (huge amounts) that may need correcting.
-//      "Fulgt opp" hides an item (saved in followup_dismissals, shared by all
-//      admins). Habit items come back after 7 days if still true; data
+//      "Fulgt opp" hides an item (saved in followup_dismissals, shared by the
+//      admins and the player's coaches). Habit items come back after 7 days if still true; data
 //      items stay hidden (that exact item/day was checked), and so does a
 //      weight-change flag until there is a NEW weigh-in.
 //   3. Goal status for the group on one FULL day (yesterday by default; a live
@@ -12,8 +12,12 @@
 //   5. One row per person: the day vs. goal, the 7 days before, last logged.
 //   6. System status.
 //
+// A COACH gets the same page for their own players only (RLS returns no one
+// else): no role filter, only their teams in the team filter, open follow-up
+// items instead of the recognition tile, and no system status.
+//
 // Filters (team, role, sort) are remembered between visits. Everything is
-// read through RLS as the logged-in admin; sums come from daily_summary().
+// read through RLS as the logged-in user; sums come from daily_summary().
 
 import { Check, Clock, Download, Scale, Search, TrendingDown, TriangleAlert } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
@@ -21,6 +25,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useFeedback } from '../feedback/feedback-context';
 import { Link, useNavigate } from 'react-router';
 
+import { useAuth } from '../auth/auth-context';
 import { ColumnChart } from '../components/ColumnChart';
 import { IMPLAUSIBLE_ITEM_G } from '../components/DayMealsTable';
 import { StatusStrip, type StripDay } from '../components/StatusStrip';
@@ -28,7 +33,7 @@ import { SystemStatus } from '../components/SystemStatus';
 import { Avatar, Meter, PageHeader, Segmented, StatTile, StatusIcon } from '../components/ui';
 import { detectWeightChange, fetchRecentWeights, type Measurement } from '../lib/body-api';
 import { downloadFile, toCsv } from '../lib/download';
-import { addDaysIso, formatNumber, toISODate } from '../lib/format';
+import { addDaysIso, formatNumber, lastLoggedText, toISODate } from '../lib/format';
 import { usePersistentState } from '../lib/persist';
 import { STATUS_COLORS, STATUS_LABELS, STATUS_ORDER, computeStatus, type Status } from '../lib/status';
 import {
@@ -59,11 +64,12 @@ const DISMISS_DAYS = 7;
  */
 const isPermanentDismissal = (key: string) => key.startsWith('item:') || key.startsWith('day:') || key.startsWith('weight:');
 
-function dismissalRow(key: string) {
+function dismissalRow(key: string, userId: string) {
   const permanent = isPermanentDismissal(key);
   const now = Date.now();
   return {
     item_key: key,
+    subject_user_id: userId, // whose item it is — lets the player's coaches see it too
     dismissed_at: new Date(now).toISOString(), // set again if an expired row is re-used
     expires_at: permanent ? null : new Date(now + DISMISS_DAYS * DAY_MS).toISOString(),
   };
@@ -133,16 +139,6 @@ async function fetchOverview(fromIso: string, toIso: string, flagsFromIso: strin
 const longDay = (iso: string) => new Date(`${iso}T12:00`).toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long' });
 const shortDay = (iso: string) => new Date(`${iso}T12:00`).toLocaleDateString(locale(), { day: 'numeric', month: 'short' });
 
-/** "I dag 12:30", "I går", "for 4 dager siden", "Aldri" (relative to the real today). */
-function lastLoggedText(iso: string | null, todayIso: string): string {
-  if (!iso) return t('Aldri', 'Never');
-  const then = new Date(iso);
-  const days = Math.round((new Date(todayIso).getTime() - new Date(toISODate(then)).getTime()) / DAY_MS);
-  if (days === 0) return `${t('I dag', 'Today')} ${then.toLocaleTimeString(locale(), { hour: '2-digit', minute: '2-digit' })}`;
-  if (days === 1) return t('I går', 'Yesterday');
-  return t(`For ${days} dager siden`, `${days} days ago`);
-}
-
 /** ISO week number (what Norwegian calendars show): the week containing Thursday. */
 function isoWeek(iso: string): number {
   const d = new Date(`${iso}T12:00`);
@@ -164,6 +160,7 @@ type RoleFilter = 'all' | 'player';
 export function OverviewPage() {
   const navigate = useNavigate();
   const { toast } = useFeedback();
+  const { isCoach, coachTeamIds } = useAuth();
   const [showHandled, setShowHandled] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<OverviewData | null>(null);
@@ -195,7 +192,7 @@ export function OverviewPage() {
     };
   }, [fromIso, todayIso, historyFrom, requestKey]);
 
-  // ---- "Fulgt opp" (saved for all admins; RLS: admins only) ----
+  // ---- "Fulgt opp" (shared by the admins and the player's coaches) ----
   function setDismissed(update: (m: Map<string, string | null>) => void) {
     setData((prev) => {
       if (!prev) return prev;
@@ -205,8 +202,8 @@ export function OverviewPage() {
     });
   }
 
-  async function dismissTodo(key: string) {
-    const row = dismissalRow(key);
+  async function dismissTodo(key: string, userId: string) {
+    const row = dismissalRow(key, userId);
     setDismissed((m) => m.set(key, row.expires_at));
     const { error: e } = await supabase.from('followup_dismissals').upsert(row); // dismissed_by = me (database default)
     if (e) {
@@ -264,11 +261,15 @@ export function OverviewPage() {
   if (error) return <p className="error">{t('Kunne ikke hente oversikten', "Couldn't load the overview")}: {error}</p>;
   if (!data) return <p className="muted">{t('Laster oversikt…', 'Loading overview…')}</p>;
 
-  const teams = [...data.goals.teams.values()];
+  // A coach sees only their own teams, and only players (they can also read
+  // other staff's names, for notes). A remembered filter they can't use = all.
+  const teams = [...data.goals.teams.values()].filter((team) => !isCoach || coachTeamIds.includes(team.id));
+  const shownRole: RoleFilter = isCoach ? 'player' : roleFilter;
+  const shownTeam = isCoach && !coachTeamIds.includes(teamFilter) ? 'all' : teamFilter;
   const visible = rows.filter(
     (r) =>
-      (roleFilter === 'all' || r.profile.role === 'player') &&
-      (teamFilter === 'all' || (teamFilter === 'none' ? !r.profile.team_id : r.profile.team_id === teamFilter)),
+      (shownRole === 'all' || r.profile.role === 'player') &&
+      (shownTeam === 'all' || (shownTeam === 'none' ? !r.profile.team_id : r.profile.team_id === shownTeam)),
   );
   const visibleIds = new Set(visible.map((r) => r.profile.id));
   const nameOf = new Map(data.profiles.map((p) => [p.id, p.display_name]));
@@ -386,21 +387,40 @@ export function OverviewPage() {
       { header: t('Vannmål (ml)', 'Water goal (ml)'), value: (x) => x.r.goals.goal_water_ml },
     ]);
     const teamName =
-      teamFilter === 'all'
+      shownTeam === 'all'
         ? t('alle', 'all')
-        : teamFilter === 'none'
+        : shownTeam === 'none'
           ? t('uten-lag', 'no-team')
-          : (data!.goals.teams.get(teamFilter)?.name ?? t('lag', 'team'));
+          : (data!.goals.teams.get(shownTeam)?.name ?? t('lag', 'team'));
     downloadFile(`${t('oversikt', 'overview')}_${teamName.toLowerCase().replace(/\s+/g, '-')}_${historyFrom}_${addDaysIso(day, -1)}.csv`, csv, 'csv');
   }
 
   const dayLabel = isToday ? t('i dag', 'today') : shortDay(day);
+  const dateText = new Date(`${day}T12:00`).toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  // A coach nobody has assigned to a team yet has nothing to see.
+  if (isCoach && coachTeamIds.length === 0) {
+    return (
+      <div className="stack-lg">
+        <PageHeader title={t('Oversikt', 'Overview')} subtitle={dateText} />
+        <section className="card stack">
+          <h2>{t('Du er ikke satt opp som trener for noe lag ennå', "You haven't been set up as a coach for any team yet")}</h2>
+          <p className="muted" style={{ margin: 0 }}>
+            {t(
+              'Be en administrator om å legge deg til som trener under «Lag». Da ser du spillerne på lagene dine her.',
+              'Ask an administrator to add you as a coach under “Teams”. Then you will see the players on your teams here.',
+            )}
+          </p>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="stack-lg">
       <PageHeader
         title={t('Oversikt', 'Overview')}
-        subtitle={new Date(`${day}T12:00`).toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+        subtitle={isCoach ? `${dateText} · ${teams.map((team) => team.name).join(', ')}` : dateText}
       />
 
       {/* One filter row, above everything it scopes */}
@@ -414,24 +434,29 @@ export function OverviewPage() {
             {t('Til i dag', 'Back to today')}
           </button>
         )}
-        <select value={teamFilter} onChange={(e) => setTeamFilter(e.target.value)} aria-label={t('Lag', 'Team')}>
-          <option value="all">{t('Alle lag', 'All teams')}</option>
-          <option value="none">{t('Uten lag', 'No team')}</option>
-          {teams.map((team) => (
-            <option key={team.id} value={team.id}>
-              {team.name}
-            </option>
-          ))}
-        </select>
-        <Segmented
-          label={t('Hvem vises', 'Who is shown')}
-          value={roleFilter}
-          onChange={setRoleFilter}
-          options={[
-            { value: 'all', label: t('Alle aktive', 'All active') },
-            { value: 'player', label: t('Kun spillere', 'Players only') },
-          ]}
-        />
+        {/* A coach with one team has nothing to choose between. */}
+        {(!isCoach || teams.length > 1) && (
+          <select value={shownTeam} onChange={(e) => setTeamFilter(e.target.value)} aria-label={t('Lag', 'Team')}>
+            <option value="all">{isCoach ? t('Alle mine lag', 'All my teams') : t('Alle lag', 'All teams')}</option>
+            {!isCoach && <option value="none">{t('Uten lag', 'No team')}</option>}
+            {teams.map((team) => (
+              <option key={team.id} value={team.id}>
+                {team.name}
+              </option>
+            ))}
+          </select>
+        )}
+        {!isCoach && (
+          <Segmented
+            label={t('Hvem vises', 'Who is shown')}
+            value={roleFilter}
+            onChange={setRoleFilter}
+            options={[
+              { value: 'all', label: t('Alle aktive', 'All active') },
+              { value: 'player', label: t('Kun spillere', 'Players only') },
+            ]}
+          />
+        )}
         <button className="small" onClick={exportGroup} style={{ marginLeft: 'auto' }}>
           <Download size={13} /> {t('Eksporter 7 dager (CSV)', 'Export 7 days (CSV)')}
         </button>
@@ -439,9 +464,9 @@ export function OverviewPage() {
 
       <div className="kpi-row" style={{ opacity: loading ? 0.6 : 1 }}>
         <StatTile
-          label={t('Aktive brukere', 'Active users')}
+          label={isCoach ? t('Spillere', 'Players') : t('Aktive brukere', 'Active users')}
           value={visible.length}
-          sub={teamFilter === 'all' ? t('Alle lag', 'All teams') : t('Filtrert på lag', 'Filtered by team')}
+          sub={shownTeam === 'all' ? (isCoach ? t('Alle mine lag', 'All my teams') : t('Alle lag', 'All teams')) : t('Filtrert på lag', 'Filtered by team')}
         />
         <StatTile
           label={`${t('Logget', 'Logged')} ${dayLabel}`}
@@ -455,11 +480,15 @@ export function OverviewPage() {
           unit={t('av 7 dager', 'of 7 days')}
           sub={t('Snitt per bruker', 'Average per user')}
         />
-        <StatTile
-          label={t('Gjenkjenning, siste 30 dager', 'Recognition, last 30 days')}
-          value={matched === null ? '–' : `${formatNumber(matched * 100)} %`}
-          sub={matched === null ? t('Ingen bilder ennå', 'No photos yet') : `${data.matchRate.labels} ${t('etiketter', 'labels')}`}
-        />
+        {isCoach ? (
+          <StatTile label={t('Trenger oppfølging', 'Needs follow-up')} value={openTodos.length} sub={t('Åpne punkter nå', 'Open items now')} />
+        ) : (
+          <StatTile
+            label={t('Gjenkjenning, siste 30 dager', 'Recognition, last 30 days')}
+            value={matched === null ? '–' : `${formatNumber(matched * 100)} %`}
+            sub={matched === null ? t('Ingen bilder ennå', 'No photos yet') : `${data.matchRate.labels} ${t('etiketter', 'labels')}`}
+          />
+        )}
       </div>
 
       <div className="two-col">
@@ -495,7 +524,7 @@ export function OverviewPage() {
                   </Link>
                   <button
                     className="small ghost"
-                    onClick={() => void (showHandled ? reopenTodo(todo.id) : dismissTodo(todo.id))}
+                    onClick={() => void (showHandled ? reopenTodo(todo.id) : dismissTodo(todo.id, todo.userId))}
                     title={
                       showHandled
                         ? t('Vis punktet igjen', 'Show the item again')
@@ -607,8 +636,7 @@ export function OverviewPage() {
                           {r.profile.display_name}
                         </Link>
                         <div className="faint small">
-                          {ROLE_LABELS[r.profile.role]}
-                          {r.team ? ` · ${r.team.name}` : ''}
+                          {isCoach ? (r.team?.name ?? '') : `${ROLE_LABELS[r.profile.role]}${r.team ? ` · ${r.team.name}` : ''}`}
                         </div>
                       </div>
                     </div>
@@ -635,7 +663,11 @@ export function OverviewPage() {
               {sorted.length === 0 && (
                 <tr>
                   <td colSpan={5} className="muted" style={{ textAlign: 'center', padding: 32 }}>
-                    {query ? t(`Ingen treff på «${query}».`, `No results for “${query}”.`) : t('Ingen aktive brukere passer filteret.', 'No active users match the filter.')}
+                    {query
+                      ? t(`Ingen treff på «${query}».`, `No results for “${query}”.`)
+                      : isCoach
+                        ? t('Ingen aktive spillere på lagene dine ennå.', 'No active players on your teams yet.')
+                        : t('Ingen aktive brukere passer filteret.', 'No active users match the filter.')}
                   </td>
                 </tr>
               )}
@@ -644,7 +676,7 @@ export function OverviewPage() {
         </div>
       </section>
 
-      <SystemStatus todayIso={todayIso} />
+      {!isCoach && <SystemStatus todayIso={todayIso} />}
     </div>
   );
 }

@@ -10,6 +10,10 @@ export type AuthValue = {
   session: Session | null;
   profile: Profile | null; // null = not logged in, or no active profile
   isAdmin: boolean;
+  /** An active coach: gets the coach dashboard (their own teams only). */
+  isCoach: boolean;
+  /** The teams a coach coaches (empty for admins — they see everything). */
+  coachTeamIds: string[];
   isLoading: boolean;
   signIn: (email: string, password: string) => Promise<string | null>; // returns an error message or null
   signOut: () => Promise<void>;

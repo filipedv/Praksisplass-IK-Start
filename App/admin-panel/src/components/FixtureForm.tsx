@@ -10,6 +10,7 @@
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
+import { useAuth } from '../auth/auth-context';
 import { useFeedback } from '../feedback/feedback-context';
 import {
   PLACEHOLDERS,
@@ -117,6 +118,7 @@ type Props = {
 
 export function FixtureForm({ kind, existing, teams, templates, todayIso, onSaved, onCancel }: Props) {
   const { toast } = useFeedback();
+  const { isCoach } = useAuth();
   const [draft, setDraft] = useState<Draft>(() => {
     if (existing) {
       const start = new Date(existing.starts_at);
@@ -309,7 +311,9 @@ export function FixtureForm({ kind, existing, teams, templates, todayIso, onSave
         </legend>
         {teams.length === 0 ? (
           <p className="muted small" style={{ margin: 0 }}>
-            {t('Ingen lag ennå — opprett lag under «Lag» først.', 'No teams yet — create teams under “Teams” first.')}
+            {isCoach
+              ? t('Du er ikke satt opp som trener for noe lag ennå. Be en administrator legge deg til under «Lag».', "You haven't been set up as a coach for any team yet. Ask an administrator to add you under “Teams”.")
+              : t('Ingen lag ennå — opprett lag under «Lag» først.', 'No teams yet — create teams under “Teams” first.')}
           </p>
         ) : (
           <div className="row" style={{ gap: 16 }}>

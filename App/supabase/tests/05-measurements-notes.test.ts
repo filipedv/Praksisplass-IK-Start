@@ -16,6 +16,10 @@ describe('measurements & notes', () => {
     bob = await t.addUser('bob@x');
     coach = await t.addUser('coach@x', 'coach');
     carl = await t.addUser('carl@x', 'admin');
+    // The coach coaches the players' team (coaches only see their own teams).
+    const team = (await t.asOwner(`insert into teams (name) values ('A-lag') returning id`))[0].id;
+    await t.asOwner('update profiles set team_id = $1 where id = any($2)', [team, [anna, bob]]);
+    await t.asOwner('insert into coach_teams (coach_id, team_id) values ($1, $2)', [coach, team]);
   });
 
   const addMeasurement = (who: string, userId: string, weight: number | null, height: number | null) =>
@@ -68,6 +72,8 @@ describe('measurements & notes', () => {
 
   test('a deactivated coach loses access', async () => {
     const ex = await t.addUser('excoach@x', 'coach');
+    await t.asOwner('insert into coach_teams (coach_id, team_id) select $1, team_id from profiles where id = $2', [ex, anna]);
+    assert.ok((await t.as(ex, 'select * from body_measurements')).rows.length > 0, 'sees them while active');
     await t.asOwner('update profiles set is_active = false where id = $1', [ex]);
     assert.equal((await t.as(ex, 'select * from body_measurements')).rows.length, 0);
     assert.equal((await addMeasurement(ex, anna, 70, null)).ok, false);

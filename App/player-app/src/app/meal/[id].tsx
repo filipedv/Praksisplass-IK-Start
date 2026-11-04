@@ -6,7 +6,7 @@
 // placeholder with the "Bilde ikke lagret" badge — exactly as designed.
 //
 // Beyond the sketch:
-//   - "Endret av administrator" notice when an admin corrected this meal
+//   - "Endret av trener eller admin" notice when someone else corrected this meal
 //   - Rediger: change grams, remove a food, add a food, change the time
 //     (changes are collected and saved together with "Lagre endringer")
 //   - Logg igjen: open Kamera with the same foods and amounts, timed now
@@ -206,7 +206,7 @@ export default function MealDetailScreen() {
           <View style={styles.adminNotice}>
             <Ionicons name="information-circle-outline" size={18} color={colors.iconSoft} />
             <Text style={styles.adminNoticeText}>
-              {t('Endret av administrator', 'Changed by an administrator')}{' '}
+              {t('Endret av trener eller admin', 'Changed by a coach or admin')}{' '}
               {new Date(meal.admin_changed_at).toLocaleDateString(locale, { day: 'numeric', month: 'long' })}.{' '}
               {t('Ser noe feil ut? Ta kontakt med en administrator.', 'Does something look wrong? Contact an administrator.')}
             </Text>

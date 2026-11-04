@@ -10,8 +10,11 @@
 //   - recent changes about this player (change log)
 //   - danger zone: permanent deletion (GDPR right to erasure)
 //
-// Reading and correcting another user's data works only because RLS lets
-// active admins; corrections are recorded in the change log by the database.
+// A COACH sees the same page for a player on their teams, without the
+// admin-only parts: changing team, login details, the change log and the
+// GDPR section. Reading and correcting another user's data works only
+// because RLS lets active admins (and the player's coaches); corrections
+// are recorded in the change log by the database.
 
 import { ArrowLeft, ChevronLeft, ChevronRight, Download, Droplet, FileJson, Trash2 } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -58,13 +61,14 @@ type PageData = {
   changes: AuditEntry[];
 };
 
-async function fetchPageData(id: string, fromIso: string, toIso: string, requestKey: string): Promise<PageData> {
+async function fetchPageData(id: string, fromIso: string, toIso: string, requestKey: string, isAdmin: boolean): Promise<PageData> {
   const [profile, goals, summary, accounts, changes] = await Promise.all([
     supabase.from('profiles').select(PROFILE_COLUMNS).eq('id', id).maybeSingle(),
     fetchAllGoals(),
     fetchDailySummary(fromIso, toIso, id),
-    listAccounts(),
-    fetchAudit({ subjectUserId: id, limit: 15 }),
+    // Login details and the change log are for admins only (a coach would just be refused).
+    isAdmin ? listAccounts() : Promise.resolve({ data: [] as AccountInfo[], error: null }),
+    isAdmin ? fetchAudit({ subjectUserId: id, limit: 15 }) : Promise.resolve([] as AuditEntry[]),
   ]);
   if (profile.error) throw profile.error;
   return {
@@ -102,7 +106,7 @@ export function PlayerPage() {
   const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast, confirm } = useFeedback();
-  const { profile: me } = useAuth();
+  const { profile: me, isAdmin } = useAuth();
   const [range, setRange] = usePersistentState<Range>('player-range', 14);
   const [data, setData] = useState<PageData | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -122,7 +126,7 @@ export function PlayerPage() {
   const loading = data?.requestKey !== requestKey;
   useEffect(() => {
     let cancelled = false;
-    fetchPageData(id, fromIso, todayIso, requestKey)
+    fetchPageData(id, fromIso, todayIso, requestKey, isAdmin)
       .then((result) => {
         if (cancelled) return;
         setData(result);
@@ -132,7 +136,7 @@ export function PlayerPage() {
     return () => {
       cancelled = true;
     };
-  }, [id, fromIso, todayIso, requestKey]);
+  }, [id, fromIso, todayIso, requestKey, isAdmin]);
 
   // The selected day's meals (reloaded after a correction, via reloadKey).
   useEffect(() => {
@@ -150,7 +154,7 @@ export function PlayerPage() {
   if (!data.user) {
     return (
       <div className="stack">
-        <Link to="/users">← {t('Brukere', 'Users')}</Link>
+        <Link to={isAdmin ? '/users' : '/'}>← {isAdmin ? t('Brukere', 'Users') : t('Oversikt', 'Overview')}</Link>
         <p className="error">{t('Fant ikke brukeren.', 'User not found.')}</p>
       </div>
     );
@@ -258,36 +262,43 @@ export function PlayerPage() {
               <span className="row" style={{ gap: 8, marginTop: 6 }}>
                 <span className="pill">{ROLE_LABELS[user.role]}</span>
                 <span className={`pill ${user.is_active ? 'ok' : 'off'}`}>{user.is_active ? t('Aktiv', 'Active') : t('Deaktivert', 'Deactivated')}</span>
-                <select
-                  value={user.team_id ?? ''}
-                  onChange={(e) => void changeTeam(e.target.value)}
-                  aria-label={t('Lag', 'Team')}
-                  style={{ padding: '2px 8px', fontSize: 12, borderRadius: 999 }}>
-                  <option value="">{t('Uten lag', 'No team')}</option>
-                  {[...data.goals.teams.values()].map((team) => (
-                    <option key={team.id} value={team.id}>
-                      {team.name}
-                    </option>
-                  ))}
-                </select>
+                {/* Only admins move players between teams. */}
+                {!isAdmin ? (
+                  team && <span className="pill">{team.name}</span>
+                ) : (
+                  <select
+                    value={user.team_id ?? ''}
+                    onChange={(e) => void changeTeam(e.target.value)}
+                    aria-label={t('Lag', 'Team')}
+                    style={{ padding: '2px 8px', fontSize: 12, borderRadius: 999 }}>
+                    <option value="">{t('Uten lag', 'No team')}</option>
+                    {[...data.goals.teams.values()].map((team) => (
+                      <option key={team.id} value={team.id}>
+                        {team.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </span>
             </span>
           </span>
         }
         actions={
-          <div className="stack" style={{ gap: 2, textAlign: 'right' }}>
-            <span className="muted">{data.account?.email ?? ''}</span>
-            <span className="faint small">
-              {t('Sist innlogget', 'Last signed in')} {data.account?.last_sign_in_at ? formatDateTime(data.account.last_sign_in_at) : t('aldri', 'never')}
-            </span>
-            <span className="faint small">
-              {t('Opprettet', 'Created')} {new Date(user.created_at).toLocaleDateString(locale())}
-              {created?.actor_name ? ` ${t('av', 'by')} ${created.actor_name}` : ''}
-            </span>
-            <Link to="/users" className="small">
-              {t('Rediger konto under Brukere', 'Edit the account under Users')}
-            </Link>
-          </div>
+          isAdmin && (
+            <div className="stack" style={{ gap: 2, textAlign: 'right' }}>
+              <span className="muted">{data.account?.email ?? ''}</span>
+              <span className="faint small">
+                {t('Sist innlogget', 'Last signed in')} {data.account?.last_sign_in_at ? formatDateTime(data.account.last_sign_in_at) : t('aldri', 'never')}
+              </span>
+              <span className="faint small">
+                {t('Opprettet', 'Created')} {new Date(user.created_at).toLocaleDateString(locale())}
+                {created?.actor_name ? ` ${t('av', 'by')} ${created.actor_name}` : ''}
+              </span>
+              <Link to="/users" className="small">
+                {t('Rediger konto under Brukere', 'Edit the account under Users')}
+              </Link>
+            </div>
+          )
         }
       />
 
@@ -488,54 +499,58 @@ export function PlayerPage() {
         </div>
       </section>
 
-      {/* ---- Recent changes about this player ---- */}
-      <section className="card flush">
-        <div className="row spread" style={{ padding: '16px 20px 4px' }}>
-          <h2>{t('Endringer', 'Changes')}</h2>
-          <Link to="/log" className="small">
-            {t('Hele endringsloggen', 'The whole change log')}
-          </Link>
-        </div>
-        <ChangeList entries={data.changes} names={names} />
-      </section>
+      {/* ---- Recent changes about this player (admins only) ---- */}
+      {isAdmin && (
+        <section className="card flush">
+          <div className="row spread" style={{ padding: '16px 20px 4px' }}>
+            <h2>{t('Endringer', 'Changes')}</h2>
+            <Link to="/log" className="small">
+              {t('Hele endringsloggen', 'The whole change log')}
+            </Link>
+          </div>
+          <ChangeList entries={data.changes} names={names} />
+        </section>
+      )}
 
-      {/* ---- GDPR: access + erasure ---- */}
-      <section className="card stack" style={{ borderColor: 'rgba(248, 113, 113, 0.35)' }}>
-        <h2>{t('Personvern', 'Privacy')}</h2>
-        <div className="row spread">
-          <div>
-            <strong className="small">{t('Last ned alle data', 'Download all data')}</strong>
-            <p className="faint small" style={{ margin: '2px 0 0' }}>
-              {t(
-                `Alt vi lagrer om ${user.display_name}, som én fil (innsynsrett). Bilder lagres aldri.`,
-                `Everything we store about ${user.display_name}, as one file (right of access). Photos are never stored.`,
-              )}
-            </p>
+      {/* ---- GDPR: access + erasure (admins only) ---- */}
+      {isAdmin && (
+        <section className="card stack" style={{ borderColor: 'rgba(248, 113, 113, 0.35)' }}>
+          <h2>{t('Personvern', 'Privacy')}</h2>
+          <div className="row spread">
+            <div>
+              <strong className="small">{t('Last ned alle data', 'Download all data')}</strong>
+              <p className="faint small" style={{ margin: '2px 0 0' }}>
+                {t(
+                  `Alt vi lagrer om ${user.display_name}, som én fil (innsynsrett). Bilder lagres aldri.`,
+                  `Everything we store about ${user.display_name}, as one file (right of access). Photos are never stored.`,
+                )}
+              </p>
+            </div>
+            <button className="small" disabled={exporting} onClick={() => void runExport('all')}>
+              <FileJson size={13} /> {t('Last ned (JSON)', 'Download (JSON)')}
+            </button>
           </div>
-          <button className="small" disabled={exporting} onClick={() => void runExport('all')}>
-            <FileJson size={13} /> {t('Last ned (JSON)', 'Download (JSON)')}
-          </button>
-        </div>
-        <div className="row spread" style={{ borderTop: '1px solid var(--raised)', paddingTop: 12 }}>
-          <div>
-            <strong className="small">{t('Slett permanent', 'Delete permanently')}</strong>
-            <p className="faint small" style={{ margin: '2px 0 0' }}>
-              {t(
-                'Sletter kontoen og alle data for godt (retten til sletting). Kan ikke angres.',
-                'Deletes the account and all data for good (right to erasure). Cannot be undone.',
-              )}
-            </p>
+          <div className="row spread" style={{ borderTop: '1px solid var(--raised)', paddingTop: 12 }}>
+            <div>
+              <strong className="small">{t('Slett permanent', 'Delete permanently')}</strong>
+              <p className="faint small" style={{ margin: '2px 0 0' }}>
+                {t(
+                  'Sletter kontoen og alle data for godt (retten til sletting). Kan ikke angres.',
+                  'Deletes the account and all data for good (right to erasure). Cannot be undone.',
+                )}
+              </p>
+            </div>
+            {/* You can't delete your own account (the server refuses too). */}
+            <button
+              className="small danger"
+              disabled={user.id === me?.id}
+              title={user.id === me?.id ? t('Du kan ikke slette din egen konto', "You can't delete your own account") : undefined}
+              onClick={() => void deletePermanently()}>
+              <Trash2 size={13} /> {t('Slett permanent', 'Delete permanently')}
+            </button>
           </div>
-          {/* You can't delete your own account (the server refuses too). */}
-          <button
-            className="small danger"
-            disabled={user.id === me?.id}
-            title={user.id === me?.id ? t('Du kan ikke slette din egen konto', "You can't delete your own account") : undefined}
-            onClick={() => void deletePermanently()}>
-            <Trash2 size={13} /> {t('Slett permanent', 'Delete permanently')}
-          </button>
-        </div>
-      </section>
+        </section>
+      )}
     </div>
   );
 }

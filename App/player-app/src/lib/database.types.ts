@@ -137,6 +137,39 @@ export type Database = {
         }
         Relationships: []
       }
+      coach_teams: {
+        Row: {
+          coach_id: string
+          created_at: string
+          team_id: string
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          team_id: string
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_teams_coach_id_fkey"
+            columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coach_teams_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fixture_reminders: {
         Row: {
           anchor: string
@@ -274,23 +307,33 @@ export type Database = {
           dismissed_by: string | null
           expires_at: string | null
           item_key: string
+          subject_user_id: string | null
         }
         Insert: {
           dismissed_at?: string
           dismissed_by?: string | null
           expires_at?: string | null
           item_key: string
+          subject_user_id?: string | null
         }
         Update: {
           dismissed_at?: string
           dismissed_by?: string | null
           expires_at?: string | null
           item_key?: string
+          subject_user_id?: string | null
         }
         Relationships: [
           {
             foreignKeyName: "followup_dismissals_dismissed_by_fkey"
             columns: ["dismissed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "followup_dismissals_subject_user_id_fkey"
+            columns: ["subject_user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -743,6 +786,10 @@ export type Database = {
         Args: { p_amount_g: number; p_food_id: string; p_meal_id: string }
         Returns: string
       }
+      can_edit_fixture: { Args: { p_fixture_id: string }; Returns: boolean }
+      can_manage_player: { Args: { p_user_id: string }; Returns: boolean }
+      coach_sees_fixture: { Args: { p_fixture_id: string }; Returns: boolean }
+      coaches_team: { Args: { p_team_id: string }; Returns: boolean }
       daily_summary: {
         Args: {
           p_from: string
@@ -785,6 +832,7 @@ export type Database = {
       }
       is_active_user: { Args: never; Returns: boolean }
       is_admin: { Args: never; Returns: boolean }
+      is_coach: { Args: never; Returns: boolean }
       is_staff: { Args: never; Returns: boolean }
       last_activity: {
         Args: never

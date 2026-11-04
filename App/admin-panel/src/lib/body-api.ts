@@ -1,9 +1,10 @@
 // Weight/height measurements and private staff notes (coach dashboard sketch).
 //
-// Who may do what is decided by RLS (see the measurements_notes migration):
-//   - measurements: staff (admin/coach) see and edit everyone's; players
-//     see their own and add their own from the app
-//   - notes: staff only — players never see them in the app (but they ARE
+// Who may do what is decided by RLS (see the measurements_notes and
+// coach_role migrations):
+//   - measurements: admins see and edit everyone's, a coach those of the
+//     players on their teams; players see their own and add their own
+//   - notes: the same staff only — players never see them in the app (but they ARE
 //     in the GDPR "all data" export: the player has a right of access)
 
 import { supabase } from './supabase';
@@ -71,6 +72,33 @@ export async function fetchRecentWeights(sinceIso: string): Promise<Measurement[
     .limit(5000);
   if (error) throw error;
   return ((data ?? []) as unknown as MeasurementRow[]).map(toMeasurement);
+}
+
+export type Latest = { weightKg: number | null; weightOn: string | null; heightCm: number | null };
+
+/**
+ * Each visible player's latest weight and latest height (they may come from
+ * different days) — for the player list. RLS decides whose rows come back.
+ */
+export async function fetchLatestMeasurements(): Promise<Map<string, Latest>> {
+  const { data, error } = await supabase
+    .from('body_measurements')
+    .select('user_id, measured_on, weight_kg, height_cm')
+    .order('measured_on', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(5000);
+  if (error) throw error;
+  const latest = new Map<string, Latest>();
+  for (const row of data ?? []) {
+    const l = latest.get(row.user_id) ?? { weightKg: null, weightOn: null, heightCm: null };
+    if (l.weightKg === null && row.weight_kg !== null) {
+      l.weightKg = Number(row.weight_kg);
+      l.weightOn = row.measured_on;
+    }
+    if (l.heightCm === null && row.height_cm !== null) l.heightCm = Number(row.height_cm);
+    latest.set(row.user_id, l);
+  }
+  return latest;
 }
 
 export type MeasurementInput = { measured_on: string; weight_kg: number | null; height_cm: number | null };

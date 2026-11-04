@@ -3,7 +3,8 @@
 //
 // Each field is either the player's own value or empty = follow the team's
 // goal, or the club default if the team has none (shown as the placeholder).
-// Saving writes to player_goals; the database (RLS) only allows that for admins.
+// Saving writes to player_goals; the database (RLS) only allows that for
+// admins and the player's coaches.
 
 import { SlidersHorizontal } from 'lucide-react';
 import { useState, type FormEvent } from 'react';

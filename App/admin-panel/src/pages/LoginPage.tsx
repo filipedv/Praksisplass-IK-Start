@@ -1,5 +1,5 @@
-// Admin login. Same accounts as the player app: being an admin is simply
-// having role = 'admin' on your profile. The language can be chosen here
+// Login for admins and coaches. Same accounts as the player app: what you
+// get after signing in depends on your profile's role ('admin' or 'coach'). The language can be chosen here
 // too, before signing in.
 
 import { useState, type FormEvent } from 'react';
@@ -26,7 +26,7 @@ export function LoginPage() {
   return (
     <form className="center narrow card stack" onSubmit={handleSubmit}>
       <div className="row spread">
-        <h1>IK Start Ernæring – Admin</h1>
+        <h1>IK Start Ernæring</h1>
         <Segmented
           label={t('Språk', 'Language')}
           value={language}

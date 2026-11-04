@@ -1,8 +1,8 @@
-// One day's meals with CORRECTION tools for admins:
+// One day's meals with CORRECTION tools for admins and the player's coaches:
 //   - change an item's grams (type a new value, press Enter or leave the field)
 //   - delete an item (the meal disappears with its last item)
 //   - add a food the player forgot ("Legg til matvare", AddMealItemDialog)
-// The player then sees "Endret av administrator" on that meal.
+// The player then sees "Endret av trener eller admin" on that meal.
 // Implausible amounts (> 1000 g) are highlighted so typos like "1500 g ris"
 // are easy to spot. All changes go through SQL functions that rescale the
 // saved nutrition, and are written to the change log by the database.
@@ -145,7 +145,7 @@ export function DayMealsTable({ meals, onChanged }: { meals: Meal[]; onChanged: 
                 <button className="small ghost" onClick={() => setAddingTo(meal)}>
                   <Plus size={13} /> {t('Legg til matvare', 'Add food')}
                 </button>
-                {meal.admin_changed_at && <span className="faint small" style={{ marginLeft: 8 }}>{t('Endret av administrator', 'Changed by an administrator')}</span>}
+                {meal.admin_changed_at && <span className="faint small" style={{ marginLeft: 8 }}>{t('Endret av trener eller admin', 'Changed by a coach or admin')}</span>}
               </td>
             </tr>
             </Fragment>
