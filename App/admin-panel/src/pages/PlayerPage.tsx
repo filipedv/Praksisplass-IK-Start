@@ -249,8 +249,19 @@ export function PlayerPage() {
 
   return (
     <div className="stack-lg">
-      <Link to="/" className="row muted" style={{ gap: 6 }}>
-        <ArrowLeft size={15} /> {t('Oversikt', 'Overview')}
+      {/* Back to where you came from (Oversikt, Spillere, Brukere, search …).
+          Opened directly (no history in the panel)? Then to Oversikt. */}
+      <Link
+        to="/"
+        className="row muted"
+        style={{ gap: 6, alignSelf: 'flex-start' }}
+        onClick={(e) => {
+          if ((window.history.state?.idx ?? 0) > 0) {
+            e.preventDefault();
+            navigate(-1);
+          }
+        }}>
+        <ArrowLeft size={15} /> {t('Tilbake', 'Back')}
       </Link>
 
       <PageHeader

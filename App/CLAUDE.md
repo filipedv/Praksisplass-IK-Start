@@ -233,7 +233,10 @@ How to run everything: see `README.md`.
   out by a trigger (`reminder_send_at()`, Norwegian local time, DST-safe;
   moving a fixture moves its reminders). `reminder_templates` = the club's
   library (8 placeholder texts seeded; `default_selected` = ticked on new
-  fixtures). Timing anchors: `before_start` / `after_end` (minutes),
+  fixtures). `reminder_templates.created_by` (forced by a trigger): every
+  coach uses every template and may add new ones, but changes/deletes only
+  their own; the club's (created_by null) and other coaches' are changed by
+  admins. Timing anchors: `before_start` / `after_end` (minutes),
   `day_before` / `same_day` (clock time). Texts may contain {lag}
   {motstander} {tid} {dag} {sted}, filled in on the phone (same rules in
   `admin-panel/src/lib/fixtures-api.ts` and `player-app/src/fixtures/fixtures.ts`
@@ -282,7 +285,15 @@ How to run everything: see `README.md`.
   player page a coach doesn't get the team select, login details, change log
   or GDPR section; Oversikt hides the role filter, recognition tile and
   system status. These are UI choices — RLS is the real rule.
-- Tests: `supabase/tests/07-coach-role.test.ts`.
+- `my_team_info()` (security definer) — the caller's team name and its
+  active coaches' names, for the player app's Profil ("A-lag · Trenere: …",
+  or "Du er ikke på et lag ennå"). Players can't read coach profiles directly.
+- Admin Oversikt: follow-up items are about **players only**; admins also get
+  "Oppsett som mangler" (players without a team, teams without a coach).
+  "Fulgt opp" shows who and when. **Ny bruker** chooses a player's team or a
+  coach's teams in the same form. `AuthProvider` re-reads the role and
+  coach teams when the tab/window is shown again.
+- Tests: `supabase/tests/07-coach-role.test.ts`, `08-templates-team-info.test.ts`.
 
 ### Security: admin access is enforced by RLS, never by the client
 - **Both apps are untrusted** and use the public key. RLS is enabled on every table.

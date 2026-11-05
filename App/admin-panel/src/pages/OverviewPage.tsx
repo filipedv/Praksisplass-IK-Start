@@ -12,6 +12,10 @@
 //   5. One row per person: the day vs. goal, the 7 days before, last logged.
 //   6. System status.
 //
+// Follow-up items are only about PLAYERS (staff don't log food). Admins also
+// get an "Oppsett som mangler" card: players without a team (no coach, no
+// fixtures) and teams without a coach (nobody follows them up).
+//
 // A COACH gets the same page for their own players only (RLS returns no one
 // else): no role filter, only their teams in the team filter, open follow-up
 // items instead of the recognition tile, and no system status.
@@ -19,7 +23,7 @@
 // Filters (team, role, sort) are remembered between visits. Everything is
 // read through RLS as the logged-in user; sums come from daily_summary().
 
-import { Check, Clock, Download, Scale, Search, TrendingDown, TriangleAlert } from 'lucide-react';
+import { Check, Clock, Download, Scale, Search, TrendingDown, TriangleAlert, Wrench } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
 import { useFeedback } from '../feedback/feedback-context';
@@ -47,6 +51,7 @@ import {
   type LastActivity,
 } from '../lib/summary-api';
 import { supabase } from '../lib/supabase';
+import { listCoachTeams } from '../lib/teams-api';
 import { ROLE_LABELS, type Profile, PROFILE_COLUMNS } from '../lib/types';
 import { locale, t } from '../lib/i18n';
 
@@ -75,6 +80,14 @@ function dismissalRow(key: string, userId: string) {
   };
 }
 
+/** "Fulgt opp av Kari, 3. nov." (+ "· vises igjen 10. nov." for habit items). */
+function handledText(d: Dismissal): string {
+  const day = (iso: string) => new Date(iso).toLocaleDateString(locale(), { day: 'numeric', month: 'short' });
+  const who = d.byName ? t(` av ${d.byName}`, ` by ${d.byName}`) : '';
+  const again = d.expiresAt ? ` · ${t('vises igjen', 'shows again')} ${day(d.expiresAt)}` : '';
+  return `${t('Fulgt opp', 'Followed up')}${who}, ${day(d.at)}${again}`;
+}
+
 type BigItem = { user_id: string; eaten_at: string; food_name: string; amount_g: number };
 
 type OverviewData = {
@@ -87,15 +100,20 @@ type OverviewData = {
   matchRate: { labels: number; unmatched: number };
   /** Weigh-ins of the last ~7 weeks (for the "rapid weight change" flag). */
   weights: Measurement[];
-  /** item key → when the "Fulgt opp" runs out (null = never). Only unexpired ones. */
-  dismissed: Map<string, string | null>;
+  /** item key → the "Fulgt opp" (who, when, and when it runs out). Only unexpired ones. */
+  dismissed: Map<string, Dismissal>;
+  /** Which teams have an active coach (admins: for "Oppsett som mangler"). */
+  coachedTeamIds: Set<string>;
 };
+
+/** A "Fulgt opp": who marked it, when, and when it runs out (null = never). */
+type Dismissal = { expiresAt: string | null; at: string; byName: string | null };
 
 /** Everything the page needs, fetched in parallel. */
 async function fetchOverview(fromIso: string, toIso: string, flagsFromIso: string, requestKey: string): Promise<OverviewData> {
   const since = new Date(Date.now() - 30 * DAY_MS).toISOString();
   const nowIso = new Date().toISOString();
-  const [profiles, goals, summary, activity, events, items, dismissals, weights] = await Promise.all([
+  const [profiles, goals, summary, activity, events, items, dismissals, weights, coachTeams] = await Promise.all([
     supabase.from('profiles').select(PROFILE_COLUMNS).eq('is_active', true).order('display_name'),
     fetchAllGoals(),
     fetchDailySummary(fromIso, toIso),
@@ -108,8 +126,12 @@ async function fetchOverview(fromIso: string, toIso: string, flagsFromIso: strin
       .gt('amount_g', IMPLAUSIBLE_ITEM_G)
       .gte('meals.eaten_at', new Date(`${flagsFromIso}T00:00:00`).toISOString())
       .limit(200),
-    supabase.from('followup_dismissals').select('item_key, expires_at').or(`expires_at.is.null,expires_at.gt.${nowIso}`),
+    supabase
+      .from('followup_dismissals')
+      .select('item_key, expires_at, dismissed_at, by:profiles!followup_dismissals_dismissed_by_fkey (display_name)')
+      .or(`expires_at.is.null,expires_at.gt.${nowIso}`),
     fetchRecentWeights(toISODate(new Date(Date.now() - 50 * DAY_MS))).catch(() => [] as Measurement[]),
+    listCoachTeams().catch(() => []),
   ]);
   if (profiles.error) throw profiles.error;
   const matchRate = { labels: 0, unmatched: 0 };
@@ -132,7 +154,18 @@ async function fetchOverview(fromIso: string, toIso: string, flagsFromIso: strin
     })),
     matchRate,
     weights,
-    dismissed: new Map((dismissals.data ?? []).map((d) => [d.item_key, d.expires_at])),
+    dismissed: new Map(
+      (dismissals.data ?? []).map((d) => [
+        d.item_key,
+        { expiresAt: d.expires_at, at: d.dismissed_at, byName: (d.by as { display_name: string } | null)?.display_name ?? null },
+      ]),
+    ),
+    // Only coaches who are still active and still coaches count.
+    coachedTeamIds: new Set(
+      coachTeams
+        .filter((c) => (profiles.data ?? []).some((p) => p.id === c.coach_id && p.role === 'coach'))
+        .map((c) => c.team_id),
+    ),
   };
 }
 
@@ -160,14 +193,14 @@ type RoleFilter = 'all' | 'player';
 export function OverviewPage() {
   const navigate = useNavigate();
   const { toast } = useFeedback();
-  const { isCoach, coachTeamIds } = useAuth();
+  const { isCoach, coachTeamIds, profile: me } = useAuth();
   const [showHandled, setShowHandled] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<OverviewData | null>(null);
   const [query, setQuery] = useState('');
   const [sortMode, setSortMode] = usePersistentState<SortMode>('overview-sort', 'attention');
-  // During the internal test most of us are admins, so show everyone by default.
-  const [roleFilter, setRoleFilter] = usePersistentState<RoleFilter>('overview-role', 'all');
+  // Players by default: the page is about them (staff can be shown too).
+  const [roleFilter, setRoleFilter] = usePersistentState<RoleFilter>('overview-role', 'player');
   const [teamFilter, setTeamFilter] = usePersistentState<string>('overview-team', 'all'); // 'all' | 'none' | id
 
   // The clock is read once, when the page opens. `day` = the day being looked at.
@@ -193,7 +226,7 @@ export function OverviewPage() {
   }, [fromIso, todayIso, historyFrom, requestKey]);
 
   // ---- "Fulgt opp" (shared by the admins and the player's coaches) ----
-  function setDismissed(update: (m: Map<string, string | null>) => void) {
+  function setDismissed(update: (m: Map<string, Dismissal>) => void) {
     setData((prev) => {
       if (!prev) return prev;
       const dismissed = new Map(prev.dismissed);
@@ -204,7 +237,7 @@ export function OverviewPage() {
 
   async function dismissTodo(key: string, userId: string) {
     const row = dismissalRow(key, userId);
-    setDismissed((m) => m.set(key, row.expires_at));
+    setDismissed((m) => m.set(key, { expiresAt: row.expires_at, at: row.dismissed_at, byName: me?.display_name ?? null }));
     const { error: e } = await supabase.from('followup_dismissals').upsert(row); // dismissed_by = me (database default)
     if (e) {
       setDismissed((m) => m.delete(key));
@@ -213,11 +246,11 @@ export function OverviewPage() {
   }
 
   async function reopenTodo(key: string) {
-    const before = data?.dismissed.get(key) ?? null;
+    const before = data?.dismissed.get(key);
     setDismissed((m) => m.delete(key));
     const { error: e } = await supabase.from('followup_dismissals').delete().eq('item_key', key);
     if (e) {
-      setDismissed((m) => m.set(key, before));
+      if (before) setDismissed((m) => m.set(key, before));
       toast(`${t('Kunne ikke angre', "Couldn't undo")}: ${e.message}`, 'error');
     }
   }
@@ -272,12 +305,15 @@ export function OverviewPage() {
       (shownTeam === 'all' || (shownTeam === 'none' ? !r.profile.team_id : r.profile.team_id === shownTeam)),
   );
   const visibleIds = new Set(visible.map((r) => r.profile.id));
+  // Follow-up is only about players, whatever "Hvem vises" is set to.
+  const visiblePlayers = visible.filter((r) => r.profile.role === 'player');
+  const playerIds = new Set(visiblePlayers.map((r) => r.profile.id));
   const nameOf = new Map(data.profiles.map((p) => [p.id, p.display_name]));
 
   // ---- "Trenger oppfølging": concrete, prioritised reasons ----
   type Todo = { id: string; userId: string; icon: 'clock' | 'alert' | 'data' | 'weight'; text: string; priority: number };
   const todos: Todo[] = [];
-  for (const r of visible) {
+  for (const r of visiblePlayers) {
     const name = r.profile.display_name;
     if (r.daysSinceMeal === Infinity) {
       todos.push({ id: `never:${r.profile.id}`, userId: r.profile.id, icon: 'clock', priority: 300, text: t(`${name} har aldri logget et måltid.`, `${name} has never logged a meal.`) });
@@ -293,7 +329,7 @@ export function OverviewPage() {
   // "Fulgt opp" lasts until someone is weighed again.
   const weightsByUser = new Map<string, Measurement[]>();
   for (const m of data.weights) weightsByUser.set(m.user_id, [...(weightsByUser.get(m.user_id) ?? []), m]);
-  for (const r of visible) {
+  for (const r of visiblePlayers) {
     const change = detectWeightChange(weightsByUser.get(r.profile.id) ?? []);
     if (!change) continue;
     const kg = formatNumber(Math.abs(change.diffKg), 1);
@@ -310,7 +346,7 @@ export function OverviewPage() {
   }
   // Data quality: single items over 1 kg, and whole days over 7000 kcal.
   for (const item of data.bigItems) {
-    if (!visibleIds.has(item.user_id)) continue;
+    if (!playerIds.has(item.user_id)) continue;
     todos.push({
       id: `item:${item.user_id}:${item.eaten_at}:${item.food_name}`,
       userId: item.user_id,
@@ -320,7 +356,7 @@ export function OverviewPage() {
     });
   }
   for (const s of data.summary) {
-    if (!visibleIds.has(s.user_id) || s.day < historyFrom || s.kcal <= IMPLAUSIBLE_DAY_KCAL) continue;
+    if (!playerIds.has(s.user_id) || s.day < historyFrom || s.kcal <= IMPLAUSIBLE_DAY_KCAL) continue;
     todos.push({
       id: `day:${s.user_id}:${s.day}`,
       userId: s.user_id,
@@ -333,6 +369,10 @@ export function OverviewPage() {
   const openTodos = todos.filter((todo) => !data.dismissed.has(todo.id));
   const handledTodos = todos.filter((todo) => data.dismissed.has(todo.id));
   const shownTodos = showHandled ? handledTodos : openTodos;
+
+  // ---- "Oppsett som mangler" (admins): gaps that fail silently ----
+  const playersWithoutTeam = isCoach ? [] : data.profiles.filter((p) => p.role === 'player' && !p.team_id);
+  const teamsWithoutCoach = isCoach ? [] : [...data.goals.teams.values()].filter((team) => !data.coachedTeamIds.has(team.id));
 
   // ---- Group numbers for the chosen day ----
   const loggedOnDay = visible.filter((r) => r.dayKcal > 0).length;
@@ -491,6 +531,47 @@ export function OverviewPage() {
         )}
       </div>
 
+      {(playersWithoutTeam.length > 0 || teamsWithoutCoach.length > 0) && (
+        <section className="card stack" style={{ gap: 10 }}>
+          <div className="card-header" style={{ marginBottom: 0 }}>
+            <h2 className="row" style={{ gap: 8 }}>
+              <Wrench size={16} className="muted" /> {t('Oppsett som mangler', 'Missing setup')}
+            </h2>
+            <span className="faint small">{t('Bare synlig for administratorer', 'Only visible to administrators')}</span>
+          </div>
+          {playersWithoutTeam.length > 0 && (
+            <div className="row spread">
+              <span>
+                {t(
+                  `${playersWithoutTeam.length} ${playersWithoutTeam.length === 1 ? 'spiller' : 'spillere'} uten lag: ${playersWithoutTeam.map((p) => p.display_name).join(', ')}.`,
+                  `${playersWithoutTeam.length} ${playersWithoutTeam.length === 1 ? 'player' : 'players'} without a team: ${playersWithoutTeam.map((p) => p.display_name).join(', ')}.`,
+                )}{' '}
+                <span className="faint small">
+                  {t('De får ingen trener, ingen kamper og bare klubbens mål.', 'They get no coach, no fixtures and only the club goals.')}
+                </span>
+              </span>
+              <Link to="/users?team=none" className="small">
+                {t('Velg lag', 'Choose a team')}
+              </Link>
+            </div>
+          )}
+          {teamsWithoutCoach.length > 0 && (
+            <div className="row spread">
+              <span>
+                {t(
+                  `${teamsWithoutCoach.length === 1 ? 'Laget' : 'Lagene'} ${teamsWithoutCoach.map((team) => team.name).join(', ')} har ingen trener.`,
+                  `${teamsWithoutCoach.length === 1 ? 'The team' : 'The teams'} ${teamsWithoutCoach.map((team) => team.name).join(', ')} ${teamsWithoutCoach.length === 1 ? 'has' : 'have'} no coach.`,
+                )}{' '}
+                <span className="faint small">{t('Bare administratorer følger dem opp.', 'Only administrators follow them up.')}</span>
+              </span>
+              <Link to="/teams" className="small">
+                {t('Legg til trener', 'Add a coach')}
+              </Link>
+            </div>
+          )}
+        </section>
+      )}
+
       <div className="two-col">
         <section className="card">
           <div className="card-header">
@@ -520,7 +601,14 @@ export function OverviewPage() {
                     ) : (
                       <TriangleAlert size={16} />
                     )}
-                    <span>{todo.text}</span>
+                    <span>
+                      {todo.text}
+                      {showHandled && data.dismissed.get(todo.id) && (
+                        <span className="faint small" style={{ display: 'block' }}>
+                          {handledText(data.dismissed.get(todo.id)!)}
+                        </span>
+                      )}
+                    </span>
                   </Link>
                   <button
                     className="small ghost"
