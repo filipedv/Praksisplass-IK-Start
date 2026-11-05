@@ -170,7 +170,7 @@ export function UsersPage() {
         }
       />
 
-      {form.kind === 'new' && <NewUserForm onCreated={formDone} onCancel={() => setForm({ kind: 'none' })} />}
+      {form.kind === 'new' && <NewUserForm teams={teams} onCreated={formDone} onCancel={() => setForm({ kind: 'none' })} />}
       {editing && (
         <EditUserForm
           key={editing.id}

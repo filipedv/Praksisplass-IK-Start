@@ -1,6 +1,7 @@
 // PROFIL (sketch: ProfileScreen): a profile card (tap → Profilinnstillinger:
-// weight and height), then a menu card with Innstillinger (reminders),
-// Endre passord, Personvernnotater and Logg ut.
+// weight and height), my team and its coaches (who can see my data — or,
+// without a team, why there are no match tips), then a menu card with
+// Innstillinger (reminders), Endre passord, Personvernnotater and Logg ut.
 //
 // Not built yet (designed in the sketch): the "Forhåndsvis som" toggle —
 // that belongs to the age-based safeguarding work.
@@ -23,6 +24,9 @@ import { formatNumber } from '@/nutrition/math';
 
 type Profile = { display_name: string; role: 'player' | 'coach' | 'guardian' | 'admin' };
 
+/** From my_team_info(): my team (null = no team) and its active coaches. */
+type TeamInfo = { team_name: string | null; coach_names: string[] };
+
 const ROLE_LABELS: Record<Profile['role'], [nb: string, en: string]> = {
   player: ['Spiller', 'Player'],
   coach: ['Trener', 'Coach'],
@@ -37,6 +41,10 @@ export default function ProfileScreen() {
   // undefined = still loading. Cached so the name doesn't pop in on every visit.
   const [profile, setProfile] = useState<Profile | null | undefined>(() =>
     userId ? getCached<Profile | null>(`profile:${userId}`) : undefined,
+  );
+
+  const [team, setTeam] = useState<TeamInfo | null | undefined>(() =>
+    userId ? getCached<TeamInfo | null>(`team-info:${userId}`) : undefined,
   );
 
   const [measurements, setMeasurements] = useState<Measurement[] | undefined>(() =>
@@ -54,6 +62,13 @@ export default function ProfileScreen() {
         .eq('id', userId)
         .maybeSingle()
         .then(({ data }) => !cancelled && setProfile(setCached(`profile:${userId}`, data)));
+      supabase
+        .rpc('my_team_info')
+        .maybeSingle()
+        .then(({ data, error }) => {
+          if (cancelled || error) return;
+          setTeam(setCached(`team-info:${userId}`, data ? { team_name: data.team_name, coach_names: data.coach_names ?? [] } : null));
+        });
       fetchMyMeasurements(userId)
         .then((rows) => !cancelled && setMeasurements(rows))
         .catch(() => {});
@@ -94,6 +109,43 @@ export default function ProfileScreen() {
           <Ionicons name="chevron-forward" size={14} color={colors.faint} />
         </Pressable>
 
+        {/* My team — players only (staff use the panel). */}
+        {profile?.role === 'player' && team && (
+          <Card style={styles.teamCard}>
+            <View style={styles.teamIcon}>
+              <Ionicons name={team.team_name ? 'people-outline' : 'alert-circle-outline'} size={18} color={team.team_name ? colors.iconSoft : colors.warning} />
+            </View>
+            <View style={{ flex: 1 }}>
+              {team.team_name ? (
+                <>
+                  <Text style={styles.name}>{team.team_name}</Text>
+                  <Text style={styles.meta}>
+                    {team.coach_names.length
+                      ? `${t(team.coach_names.length === 1 ? 'Trener' : 'Trenere', team.coach_names.length === 1 ? 'Coach' : 'Coaches')}: ${team.coach_names.join(', ')}`
+                      : t('Ingen trener lagt inn ennå', 'No coach added yet')}
+                  </Text>
+                  <Text style={styles.meta}>
+                    {t(
+                      'Trenerne og administratorer kan se måltidene, vannet og målingene dine.',
+                      'Your coaches and administrators can see your meals, water and measurements.',
+                    )}
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.name}>{t('Du er ikke på et lag ennå', "You're not on a team yet")}</Text>
+                  <Text style={styles.meta}>
+                    {t(
+                      'Til da får du ikke lagets kamper og treninger, eller tips før kamp. Be treneren din eller en administrator om å legge deg på laget.',
+                      "Until then you won't get your team's matches and training, or tips before matches. Ask your coach or an administrator to put you on the team.",
+                    )}
+                  </Text>
+                </>
+              )}
+            </View>
+          </Card>
+        )}
+
         {profile === null && (
           // RLS hides a deactivated user's own profile, so "no profile" here
           // most likely means the account has been deactivated.
@@ -126,6 +178,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.lg,
   },
   pressed: { backgroundColor: colors.surfaceRaised },
+  teamCard: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, padding: spacing.lg },
+  teamIcon: { width: 44, alignItems: 'center', paddingTop: 2 },
   avatar: {
     width: 44,
     height: 44,

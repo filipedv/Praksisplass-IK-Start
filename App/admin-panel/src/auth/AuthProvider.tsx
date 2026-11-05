@@ -34,14 +34,21 @@ export function AuthProvider({ children }: PropsWithChildren) {
         setIsLoading(false);
         return;
       }
-      const [{ data }, assignments] = await Promise.all([
-        supabase.from('profiles').select(PROFILE_COLUMNS).eq('id', newSession.user.id).maybeSingle(),
-        // Only a coach has rows here (RLS: a coach reads their own assignments).
-        supabase.from('coach_teams').select('team_id').eq('coach_id', newSession.user.id),
-      ]);
-      setProfile(data);
-      setCoachTeamIds((assignments.data ?? []).map((a) => a.team_id));
+      await loadRole(newSession.user.id);
       setIsLoading(false);
+    }
+
+    // Role, active status and a coach's teams. Only stored if something
+    // changed, so coming back to the tab doesn't redraw every page.
+    async function loadRole(userId: string) {
+      const [{ data }, assignments] = await Promise.all([
+        supabase.from('profiles').select(PROFILE_COLUMNS).eq('id', userId).maybeSingle(),
+        // Only a coach has rows here (RLS: a coach reads their own assignments).
+        supabase.from('coach_teams').select('team_id').eq('coach_id', userId),
+      ]);
+      const teamIds = (assignments.data ?? []).map((a) => a.team_id).sort();
+      setProfile((old) => (JSON.stringify(old) === JSON.stringify(data) ? old : data));
+      setCoachTeamIds((old) => (old.join() === teamIds.join() ? old : teamIds));
     }
 
     // onAuthStateChange also fires once at startup with the saved session.
@@ -50,7 +57,23 @@ export function AuthProvider({ children }: PropsWithChildren) {
       // callback, so we schedule the profile load right after it.
       setTimeout(() => loadProfile(newSession), 0);
     });
-    return () => data.subscription.unsubscribe();
+
+    // Coming back to the panel: check again, so a team an admin just
+    // assigned (or a role change) shows up without reloading the page.
+    function onVisible() {
+      if (document.visibilityState !== 'visible') return;
+      void supabase.auth.getSession().then(({ data: { session: current } }) => {
+        if (current) void loadRole(current.user.id);
+      });
+    }
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible); // another window was in front
+
+    return () => {
+      data.subscription.unsubscribe();
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
   }, []);
 
   async function signIn(email: string, password: string) {

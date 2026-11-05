@@ -3,10 +3,15 @@
 // Norwegian (+ English). "Forhåndsvalgt" = ticked automatically on a new
 // fixture. Changing a template doesn't change fixtures already saved (they
 // keep their own copy).
+//
+// Every coach can USE every template and add new ones, but a coach can only
+// change or delete templates they made themselves; the club's (and other
+// coaches') templates are changed by admins. The database enforces this.
 
 import { Pencil, Plus, Trash2 } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 
+import { useAuth } from '../auth/auth-context';
 import { useFeedback } from '../feedback/feedback-context';
 import { PLACEHOLDERS, deleteTemplate, saveTemplate, timingLabel, type FixtureKind, type ReminderTemplate, type Timing } from '../lib/fixtures-api';
 import { getLanguage, t } from '../lib/i18n';
@@ -18,6 +23,8 @@ const KIND_LABEL = (kind: FixtureKind) => (kind === 'match' ? t('Kamp', 'Match')
 
 export function TemplatesCard({ templates, onChanged }: { templates: ReminderTemplate[]; onChanged: () => void }) {
   const { toast, confirm } = useFeedback();
+  const { isCoach, profile: me } = useAuth();
+  const canChange = (tpl: ReminderTemplate) => !isCoach || tpl.created_by === me?.id;
   const [draft, setDraft] = useState<Draft | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -160,17 +167,23 @@ export function TemplatesCard({ templates, onChanged }: { templates: ReminderTem
                       <td className="small">{en && tpl.body_en ? tpl.body_en : tpl.body_nb}</td>
                       <td>{tpl.default_selected ? <span className="pill ok">✓</span> : <span className="faint">–</span>}</td>
                       <td>
-                        <div className="row" style={{ gap: 4, flexWrap: 'nowrap', justifyContent: 'flex-end' }}>
-                          <button
-                            className="small ghost"
-                            aria-label={t('Rediger mal', 'Edit template')}
-                            onClick={() => setDraft({ ...tpl, body_en: tpl.body_en ?? '' })}>
-                            <Pencil size={13} />
-                          </button>
-                          <button className="small ghost danger" aria-label={t('Slett mal', 'Delete template')} onClick={() => void remove(tpl)}>
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
+                        {canChange(tpl) ? (
+                          <div className="row" style={{ gap: 4, flexWrap: 'nowrap', justifyContent: 'flex-end' }}>
+                            <button
+                              className="small ghost"
+                              aria-label={t('Rediger mal', 'Edit template')}
+                              onClick={() => setDraft({ ...tpl, body_en: tpl.body_en ?? '' })}>
+                              <Pencil size={13} />
+                            </button>
+                            <button className="small ghost danger" aria-label={t('Slett mal', 'Delete template')} onClick={() => void remove(tpl)}>
+                              <Trash2 size={13} />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="pill" title={t('Bare administratorer kan endre klubbens maler', "Only administrators can change the club's templates")}>
+                            {tpl.created_by ? t('Annen trener', 'Another coach') : t('Klubbens', "Club's")}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -181,8 +194,10 @@ export function TemplatesCard({ templates, onChanged }: { templates: ReminderTem
       ))}
       <p className="faint small" style={{ margin: 0 }}>
         {t(
-          'Tekstene er plassholdere og bør kvalitetssikres av en ernæringsfaglig person før de brukes for ungdomsspillere.',
-          'The texts are placeholders and should be checked by a qualified nutrition professional before use with youth players.',
+          'Tekstene er plassholdere og bør kvalitetssikres av en ernæringsfaglig person før de brukes for ungdomsspillere.' +
+            (isCoach ? ' Du kan bruke alle malene, og endre de du har laget selv.' : ''),
+          'The texts are placeholders and should be checked by a qualified nutrition professional before use with youth players.' +
+            (isCoach ? ' You can use every template, and change the ones you made yourself.' : ''),
         )}
       </p>
     </div>

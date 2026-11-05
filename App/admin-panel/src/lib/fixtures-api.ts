@@ -23,6 +23,8 @@ export type ReminderTemplate = Timing & {
   body_en: string | null;
   default_selected: boolean;
   sort_order: number;
+  /** Who made it (set by the database). null = the club's — only admins change those. */
+  created_by?: string | null;
 };
 
 export type FixtureReminder = Timing & {

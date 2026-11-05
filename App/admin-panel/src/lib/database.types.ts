@@ -671,6 +671,7 @@ export type Database = {
           body_en: string | null
           body_nb: string
           created_at: string
+          created_by: string | null
           default_selected: boolean
           id: string
           kind: string
@@ -685,6 +686,7 @@ export type Database = {
           body_en?: string | null
           body_nb: string
           created_at?: string
+          created_by?: string | null
           default_selected?: boolean
           id?: string
           kind: string
@@ -699,6 +701,7 @@ export type Database = {
           body_en?: string | null
           body_nb?: string
           created_at?: string
+          created_by?: string | null
           default_selected?: boolean
           id?: string
           kind?: string
@@ -707,7 +710,15 @@ export type Database = {
           sort_order?: number
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "reminder_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       teams: {
         Row: {
@@ -847,6 +858,13 @@ export type Database = {
         Returns: string
       }
       my_team_id: { Args: never; Returns: string }
+      my_team_info: {
+        Args: never
+        Returns: {
+          coach_names: string[]
+          team_name: string
+        }[]
+      }
       recent_foods: {
         Args: { p_limit?: number }
         Returns: {
