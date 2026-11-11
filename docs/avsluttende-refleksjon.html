@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Avsluttende refleksjon – Praksis hos IK Start</title>
+<meta name="theme-color" content="#0B1330">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --navy-950:#0B1330;
+    --navy-800:#17224C;
+    --blue:#33418C;
+    --blue-light:#7C89C4;
+    --white:#FFFFFF;
+    --paper:#F5F6FA;
+    --ink:#12162B;
+    --muted:#5B6178;
+    --line:#DEE1EC;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:var(--white);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit;text-decoration:none;}
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:.72rem;
+    font-weight:600;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+  }
+
+  /* ---------- Header ---------- */
+  header{
+    position:sticky;
+    top:0;
+    z-index:50;
+    background:rgba(255,255,255,.88);
+    backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:16px 48px;
+    border-bottom:1px solid var(--line);
+    transition:box-shadow .25s ease;
+  }
+  header.scrolled{box-shadow:0 6px 24px -12px rgba(11,19,48,.18);}
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:13px;
+    font-weight:600;
+    font-size:1.05rem;
+    letter-spacing:.01em;
+    color:var(--navy-950);
+  }
+  .brand{flex-shrink:0;}
+  .brand img{
+    display:block;
+    height:36px;
+    width:auto;
+    max-width:none;
+    flex-shrink:0;
+    object-fit:contain;
+  }
+  .brand span{white-space:nowrap;}
+  nav{display:flex;gap:38px;align-items:center;}
+  /* Seks menypunkter: mindre mellomrom på mellomstore skjermer så logoen får plass */
+  @media (max-width:1180px){
+    header{padding:16px 28px;gap:24px;}
+    nav{gap:24px;}
+  }
+  @media (max-width:960px) and (min-width:721px){
+    nav a{font-size:.86rem;}
+    nav{gap:18px;}
+  }
+  nav a{
+    font-size:.93rem;
+    font-weight:500;
+    color:var(--navy-800);
+    position:relative;
+    padding-bottom:4px;
+  }
+  nav a::after{
+    content:"";
+    position:absolute;left:0;right:0;bottom:-4px;
+    height:2px;background:var(--blue);
+    transform:scaleX(0);
+    transform-origin:left;
+    transition:transform .2s ease;
+  }
+  nav a:hover::after, nav a.active::after{transform:scaleX(1);}
+  nav a.active{color:var(--blue);}
+
+  /* ---------- Hero ---------- */
+  .hero{
+    position:relative;
+    overflow:hidden;
+    background:linear-gradient(175deg, var(--navy-950) 0%, var(--navy-800) 100%);
+    padding:100px 24px 88px;
+    text-align:center;
+  }
+  .pitch-lines{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    opacity:.5;
+  }
+  .hero-inner{
+    position:relative;
+    z-index:2;
+    max-width:760px;
+    margin:0 auto;
+  }
+  .hero .eyebrow{
+    color:var(--blue-light);
+    opacity:0;
+    animation:rise .7s .1s ease forwards;
+  }
+  .hero h1{
+    margin:20px 0 0;
+    font-family:'Fraunces',serif;
+    font-weight:700;
+    font-optical-sizing:auto;
+    color:#fff;
+    font-size:clamp(2.4rem, 5.6vw, 3.9rem);
+    letter-spacing:-.01em;
+    line-height:1.08;
+    opacity:0;
+    animation:rise .7s .22s ease forwards;
+  }
+  .hero h1 em{
+    font-style:normal;
+    color:var(--blue-light);
+  }
+
+  @keyframes rise{
+    from{opacity:0; transform:translateY(14px);}
+    to{opacity:1; transform:translateY(0);}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .hero .eyebrow, .hero h1{animation:none; opacity:1;}
+  }
+
+  /* ---------- Main ---------- */
+  main{
+    max-width:1080px;
+    margin:0 auto;
+    padding:96px 24px 130px;
+  }
+  .section-head{
+    text-align:center;
+    max-width:600px;
+    margin:0 auto 40px;
+  }
+  .section-head .eyebrow{color:var(--blue);}
+  .section-head h2{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:2rem;
+    color:var(--navy-950);
+    margin:12px 0 0;
+  }
+
+  /* ---------- Felles refleksjon ---------- */
+  .summary{
+    max-width:760px;
+    margin:0 auto;
+  }
+  .summary p{
+    font-size:1.14rem;
+    line-height:1.8;
+    color:var(--ink);
+    margin:0 0 18px;
+  }
+  .summary p:last-child{margin-bottom:0;}
+
+  .divider{
+    border:0;
+    height:1px;
+    background:var(--line);
+    margin:88px 0;
+  }
+
+  /* ---------- Personlige refleksjoner ---------- */
+  .person{
+    display:grid;
+    grid-template-columns:minmax(0, 5fr) minmax(0, 6fr);
+    gap:56px;
+    align-items:start;
+  }
+  .person + .person{
+    margin-top:96px;
+    padding-top:96px;
+    border-top:1px solid var(--line);
+  }
+  /* Annenhver person får bildet på høyre side */
+  .person:nth-of-type(even) .photo{order:2;}
+
+  .photo{
+    position:relative;
+    aspect-ratio:4 / 5;
+    background:linear-gradient(175deg, var(--navy-950) 0%, var(--navy-800) 100%);
+    border-radius:4px;
+    overflow:hidden;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .photo .initials{
+    font-family:'Fraunces',serif;
+    font-weight:600;
+    font-size:4rem;
+    color:var(--blue-light);
+  }
+  .photo img{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    object-fit:cover;
+  }
+
+  .person-text .eyebrow{color:var(--blue);}
+  .person-text h3{
+    font-family:'Fraunces',serif;
+    font-weight:700;
+    font-size:clamp(2rem, 4vw, 2.8rem);
+    color:var(--navy-950);
+    margin:12px 0 24px;
+    line-height:1.1;
+  }
+  .person-text p{
+    font-size:1.06rem;
+    line-height:1.8;
+    color:var(--ink);
+    margin:0 0 18px;
+  }
+  .person-text p:last-child{margin-bottom:0;}
+
+  /* ---------- Footer ---------- */
+  footer{
+    border-top:1px solid var(--line);
+    padding:30px 48px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    color:var(--muted);
+    font-size:.83rem;
+  }
+  footer .foot-brand{
+    font-family:'IBM Plex Mono',monospace;
+    letter-spacing:.05em;
+    color:var(--navy-800);
+  }
+
+  @media (max-width:860px){
+    .person{grid-template-columns:1fr;gap:32px;}
+    .person:nth-of-type(even) .photo{order:0;}
+    .photo{max-width:420px;}
+  }
+  @media (max-width:720px){
+    header{flex-direction:column;gap:16px;padding:20px 24px;}
+    nav{gap:22px;flex-wrap:wrap;justify-content:center;}
+    .hero{padding:80px 18px 64px;}
+    main{padding:72px 20px 96px;}
+    .divider{margin:64px 0;}
+    .person + .person{margin-top:64px;padding-top:64px;}
+    footer{flex-direction:column;gap:10px;text-align:center;padding:24px;}
+  }
+
+/* ---------- Navigasjon: tilgjengelighet og mobil ---------- */
+nav a::after{bottom:0;}
+nav a:focus-visible{outline:2px solid var(--blue);outline-offset:4px;border-radius:2px;}
+nav a:focus-visible::after{transform:scaleX(1);}
+@media (max-width:720px){
+  header{gap:10px;padding:14px 16px 12px;}
+  nav{gap:8px 14px;flex-wrap:wrap;justify-content:center;}
+  nav a{font-size:.86rem;white-space:nowrap;}
+}
+</style>
+</head>
+<body>
+
+<header id="siteHeader">
+  <a class="brand" href="index.html" aria-label="IK Start – til forsiden">
+    <img src="start-logo.png" alt="IK Start">
+    <span>IK Start</span>
+  </a>
+  <nav aria-label="Hovedmeny">
+    <a href="index.html">Hjem</a>
+    <a href="prosjektdagbok.html">Prosjektdagbok</a>
+    <a href="om-oss.html">Om oss</a>
+    <a href="status.html">Status 1</a>
+    <a href="status2.html">Status 2</a>
+    <a href="avsluttende-refleksjon.html" class="active" aria-current="page">Avsluttende refleksjon</a>
+  </nav>
+</header>
+
+<section class="hero">
+  <svg class="pitch-lines" viewBox="0 0 1440 620" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <line x1="720" y1="0" x2="720" y2="620" stroke="#ffffff" stroke-width="1"/>
+    <circle cx="720" cy="310" r="92" fill="none" stroke="#ffffff" stroke-width="1"/>
+    <circle cx="720" cy="310" r="3" fill="#ffffff"/>
+    <path d="M -20 0 A 120 120 0 0 1 -20 250" fill="none" stroke="#ffffff" stroke-width="1"/>
+    <path d="M 1460 0 A 120 120 0 0 0 1460 250" fill="none" stroke="#ffffff" stroke-width="1"/>
+    <path d="M -20 370 A 120 120 0 0 0 -20 620" fill="none" stroke="#ffffff" stroke-width="1"/>
+    <path d="M 1460 370 A 120 120 0 0 1 1460 620" fill="none" stroke="#ffffff" stroke-width="1"/>
+  </svg>
+  <div class="hero-inner">
+    <span class="eyebrow">Praksisprosjekt · IK Start · 2026</span>
+    <h1>Avsluttende <em>refleksjon</em></h1>
+  </div>
+</section>
+
+<main>
+  <!-- ===== Felles refleksjon ===== -->
+  <div class="section-head">
+    <span class="eyebrow">Tilbakeblikk</span>
+    <h2>Praksisperioden</h2>
+  </div>
+
+  <div class="summary">
+    <p>
+      Hos IK Start har vi jobbet med å utvikle en ernæringsapp for akademiet, som skal gjøre det
+      enkelt å registrere og følge opp kosthold og restitusjon. Skriv her om hvordan dere jobbet,
+      hvem dere samarbeidet med i klubben, hva dere leverte og hva dere har lært som gruppe.
+    </p>
+    <p>
+      Legg gjerne til et avsnitt til om hvordan dere opplevde praksisen som helhet.
+    </p>
+  </div>
+
+  <hr class="divider">
+
+  <!-- ===== Personlige refleksjoner ===== -->
+  <!-- Bytt ut bildestien med riktig fil. Mangler bildet, vises initialene i stedet. -->
+  <article class="person">
+    <div class="photo">
+      <span class="initials" aria-hidden="true">ØB</span>
+      <img src="bilder/oyvind.jpg" alt="Øyvind Birkeland" onerror="this.remove()">
+    </div>
+    <div class="person-text">
+      <span class="eyebrow">Personlig refleksjon</span>
+      <h3>Øyvind</h3>
+      <p>
+        Personlig refleksjon kommer her – hva du har lært, hva du syntes var mest interessant,
+        og hva du tar med deg videre.
+      </p>
+      <p>
+        Eventuelt et avsnitt til om utfordringer, nye verktøy eller ferdigheter.
+      </p>
+    </div>
+  </article>
+
+  <article class="person">
+    <div class="photo">
+      <span class="initials" aria-hidden="true">SD</span>
+      <img src="bilder/sivert.jpg" alt="Sivert Dørum" onerror="this.remove()">
+    </div>
+    <div class="person-text">
+      <span class="eyebrow">Personlig refleksjon</span>
+      <h3>Sivert</h3>
+      <p>
+        Personlig refleksjon kommer her – hva du har lært, hva du syntes var mest interessant,
+        og hva du tar med deg videre.
+      </p>
+      <p>
+        Eventuelt et avsnitt til om utfordringer, nye verktøy eller ferdigheter.
+      </p>
+    </div>
+  </article>
+
+  <article class="person">
+    <div class="photo">
+      <span class="initials" aria-hidden="true">FE</span>
+      <img src="bilder/filip.jpg" alt="Filip Edvardsen" onerror="this.remove()">
+    </div>
+    <div class="person-text">
+      <span class="eyebrow">Personlig refleksjon</span>
+      <h3>Filip</h3>
+      <p>
+        Personlig refleksjon kommer her – hva du har lært, hva du syntes var mest interessant,
+        og hva du tar med deg videre.
+      </p>
+      <p>
+        Eventuelt et avsnitt til om utfordringer, nye verktøy eller ferdigheter.
+      </p>
+    </div>
+  </article>
+</main>
+
+<footer>
+  <span class="foot-brand">IK START · PRAKSISPROSJEKT</span>
+  <span>Øyvind Birkeland · Sivert Dørum · Filip Edvardsen</span>
+</footer>
+
+<script>
+  const header = document.getElementById('siteHeader');
+  const updateHeader = () => header.classList.toggle('scrolled', window.scrollY > 8);
+  window.addEventListener('scroll', updateHeader, {passive:true});
+  updateHeader();
+</script>
+
+</body>
+</html>
