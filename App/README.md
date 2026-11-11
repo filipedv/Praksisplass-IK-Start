@@ -112,7 +112,6 @@ Checks before committing: `npx tsc --noEmit` and `npx expo lint`.
 
 ```bash
 cd admin-panel
-cp .env.example .env     # same URL + publishable key as the player app
 npm install
 npm run dev              # → http://localhost:5173
 ```
